@@ -4,9 +4,6 @@ from src.controllers.mpc.ipopt_cartpole import MPC
 import casadi as ca
 import numpy as np
 
-
-# Euler / direct shooting MPC
-
 # Constants
 POLE_LEN = 0.5
 FORCE = 10
@@ -16,21 +13,6 @@ CART_MASS = 1.0
 POLE_MASS = 0.1
 TOTAL_MASS = POLE_MASS + CART_MASS
 POLEMASS_LENGTH = POLE_MASS * POLE_LEN
-
-
-env = CartPoleEnv(render_mode="human")
-
-
-env.reset()
-# play(
-#     env,
-#     keys_to_action={
-#         (ord("a"),): 0,
-#         (ord("d"),): 1,
-#     },
-#     noop=-1,
-#     zoom=1,
-# )
 
 
 def gen_dynamics():
@@ -53,13 +35,6 @@ def gen_dynamics():
     )
     xacc = temp - POLEMASS_LENGTH * thetaacc * costheta / TOTAL_MASS
 
-    # x_c_next = x_c + dt * d_x_c
-    # d_x_c_next = d_x_c + dt * xacc
-    # theta_next = theta + dt * theta_dot
-    # theta_dot_next = theta_dot + dt * thetaacc
-
-    # x_next = ca.vertcat(x_c_next, d_x_c_next, theta_next, theta_dot_next)
-
     dx = ca.vertcat(d_x_c, xacc, theta_dot, thetaacc)
 
     dynam_f = ca.Function("dynamics", [x, u], [dx])
@@ -70,6 +45,9 @@ def constraints(opti, x, u):
 
     opti.subject_to(opti.bounded(-x_threshold, x[0], x_threshold))
     opti.subject_to(opti.bounded(-FORCE, u, FORCE))
+
+def cost(x, u):
+    return x[2] ** 2 + x[0] ** 2
 
 ipopt_settings = {
     "record_time": True,
@@ -91,15 +69,23 @@ ipopt_settings = {
     "ipopt.derivative_test": "none",
 }
 
-mpc = MPC(4, 1, gen_dynamics, None, constraints, ipopt_settings)
-observation, reward, terminated, truncated, info = env.step(0)
+def run_mpc():
+    env = CartPoleEnv(render_mode="human")
 
-while True:
-    u = mpc.run_mpc(observation)
-    observation, reward, terminated, truncated, info = env.step(np.clip(u, -FORCE, FORCE))
+    env.reset()
 
-    if terminated: 
-        break
+    mpc = MPC(4, 1, gen_dynamics, None, constraints, None, cost, ipopt_settings)
+    observation, reward, terminated, truncated, info = env.step(0)
+
+    while True:
+        u = mpc.run_mpc(observation)
+        observation, reward, terminated, truncated, info = env.step(np.clip(u, -FORCE, FORCE))
+
+        if terminated: 
+            break
 
 
-env.close()
+    env.close()
+
+if __name__ == "__main__":
+    run_mpc()

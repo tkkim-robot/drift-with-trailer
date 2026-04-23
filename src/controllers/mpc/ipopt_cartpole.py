@@ -5,7 +5,7 @@ class MPC:
     Generalized MPC class that uses direct shooting with Euler Method
     """
 
-    def __init__(self, x_d, u_d, dynamics_func, term_constraint_func, constraint_func, ipopt_settings, step=0.02*2, n=20):
+    def __init__(self, x_d, u_d, dynamics_func, term_constraint_func, constraint_func, term_cost_func, cost_func, ipopt_settings, step=0.02*2, n=20):
         """
         Args:
             x_d (int): State vector dimensions
@@ -13,6 +13,8 @@ class MPC:
             dynamics_func (Callable): Dynamics function that returns x_dot
             term_constraint_func (Callable[[ca.Opti, SX, SX, SX], None]): Terminal constraint function t(opti, x(t_f), u(0), u(t_f))
             constraint_func (Callable[[ca.Opti, SX, SX], None]): Constraint function c(opti, x(t), u(t))
+            term_cost_func (Callable[[SX, SX, SX], SX]): Terminal cost function t(x(t_f), u(0), u(t_f))
+            cost_func (Callable[[SX, SX], SX]): Constraint function c(x(t), u(t))
             ipopt_settings (dict):
             step (float, optional): Timestep for controller. Defaults to 0.02*2.
             n (int, optional): Number of timesteps (lookahead) for MPC solve. Defaults to 20.
@@ -21,6 +23,8 @@ class MPC:
         self.dynamics = dynamics_func
         self.constraint = constraint_func
         self.term_constraint = term_constraint_func
+        self.term_cost = term_cost_func
+        self.cost = cost_func
 
         self.opti = ca.Opti()
         
@@ -63,8 +67,11 @@ class MPC:
         for i in range(self.n):
             x = self._euler_step(x, u[i])
 
-            J += x[2] ** 2 + x[0] ** 2
+            J += self.cost(x, u[i])
             self.constraint(self.opti, x, u[i])
+
+        if self.term_cost:
+            J += self.term_cost(x, u[0], u[-1])
 
         self.opti.minimize(J)
 
@@ -82,7 +89,7 @@ class MPC:
             warm_start (bool, optional): _description_. Defaults to True.
 
         Returns:
-            ca.SX: _description_
+            ca.SX: u
         """
         if self.last_trajectory is not None and warm_start:
             self.opti.set_initial(self.u_sym,  ca.vertcat(self.last_trajectory[:-1], self.last_trajectory[-1]))
