@@ -1,5 +1,5 @@
 from src.simulation.cartpole_env import CartPoleEnv
-from src.controllers.mpc.mpc import MPC
+from src.controllers.mpc.ipopt_cartpole import MPC
 
 import casadi as ca
 import numpy as np
@@ -65,6 +65,12 @@ def gen_dynamics():
     dynam_f = ca.Function("dynamics", [x, u], [dx])
     return dynam_f
 
+def constraints(opti, x, u):
+    x_threshold = 2.4
+
+    opti.subject_to(opti.bounded(-x_threshold, x[0], x_threshold))
+    opti.subject_to(opti.bounded(-FORCE, u, FORCE))
+
 ipopt_settings = {
     "record_time": True,
     "ipopt.print_frequency_iter": 25,
@@ -84,12 +90,6 @@ ipopt_settings = {
     "ipopt.limited_memory_update_type": "bfgs",
     "ipopt.derivative_test": "none",
 }
-
-def constraints(opti, x, u):
-    x_threshold = 2.4
-
-    opti.subject_to(opti.bounded(-x_threshold, x[0], x_threshold))
-    opti.subject_to(opti.bounded(-FORCE, u, FORCE))
 
 mpc = MPC(4, 1, gen_dynamics, None, constraints, ipopt_settings)
 observation, reward, terminated, truncated, info = env.step(0)
