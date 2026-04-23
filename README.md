@@ -36,6 +36,7 @@ uv run python examples/cartpole_smoke.py
 
 The smoke simulation is intentionally simple. It only checks that the Python environment, dependency installation, and a basic cartpole dynamics example are working.
 
-## First Student Task
+## Student Tasks
 
-Start with [Assignment 001: Nonlinear MPC CartPole Swing-Up](docs/tasks/001_nonlinear_mpc_cartpole_swingup.md).
+- [Task 001: Nonlinear MPC CartPole Swing-Up](docs/tasks/001_nonlinear_mpc_cartpole_swingup.md)
+- [Task 002: MPPI and Smooth MPPI CartPole Swing-Up](docs/tasks/002_mppi_smooth_mppi_cartpole.md)
