@@ -57,7 +57,7 @@ ipopt_settings = {
     "ipopt.sb": "no",
     "ipopt.max_iter": 5000,
     "detect_simple_bounds": True,
-    "ipopt.linear_solver": "ma97",
+    "ipopt.linear_solver": "mumps",
     "ipopt.mu_strategy": "adaptive",
     "ipopt.nlp_scaling_method": "gradient-based",
     "ipopt.bound_relax_factor": 1e-4,
