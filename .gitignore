@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# uv / local environments
+.venv/
+uv.lock
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Large or generated research artifacts
+*.npy
+*.npz
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.mp4
+*.mov
+*.avi
+experiments/**/outputs/
+experiments/**/runs/
+src/learning/datasets/raw/
+src/learning/datasets/processed/

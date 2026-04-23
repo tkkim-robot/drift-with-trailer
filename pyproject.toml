@@ -1,0 +1,18 @@
+[project]
+name = "drift-with-trailer"
+version = "0.1.0"
+description = "Research code for MPC, learning, and adaptation for vehicle/trailer systems."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
