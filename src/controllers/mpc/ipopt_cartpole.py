@@ -20,6 +20,8 @@ class MPC:
             n (int, optional): Number of timesteps (lookahead) for MPC solve. Defaults to 20.
         """        
         self.last_trajectory = None
+        self.lt_lam_g = None
+
         self.dynamics = dynamics_func
         self.constraint = constraint_func
         self.term_constraint = term_constraint_func
@@ -37,7 +39,20 @@ class MPC:
         self.dynamics = dynamics_func()  # ca.Function for efficiency
         self.u_sym = self.setup_mpc()
 
-        self.opti.solver("ipopt", ipopt_settings)
+
+
+        self.ipopt_settings = ipopt_settings
+
+        ws = {
+            'ipopt.warm_start_init_point': 'yes',
+            # 'ipopt.mu_init': 1e-1,
+            'ipopt.warm_start_bound_push': 3e-2,
+            'ipopt.warm_start_slack_bound_frac': 3e-2,
+            'ipopt.warm_start_slack_bound_push': 3e-2,
+            'ipopt.warm_start_mult_bound_push': 3e-2,
+        }
+        self.ipopt_ws_settings = ipopt_settings | ws
+        # self.opti.solver("ipopt", ipopt_settings)
 
 
     def _euler_step(self, x, u):
@@ -91,8 +106,11 @@ class MPC:
         Returns:
             ca.SX: u
         """
+        self.opti.solver("ipopt", self.ipopt_ws_settings if warm_start and self.last_trajectory is not None else self.ipopt_settings)
+
         if self.last_trajectory is not None and warm_start:
-            self.opti.set_initial(self.u_sym,  ca.vertcat(self.last_trajectory[:-1], self.last_trajectory[-1]))
+            self.opti.set_initial(self.u_sym,  ca.vertcat(self.last_trajectory[1:], self.last_trajectory[-1]))
+            self.opti.set_initial(self.opti.lam_g, ca.vertcat(self.lt_lam_g[1:], self.lt_lam_g[-1]))
         
         self.opti.set_value(self.x0, x)
 
@@ -106,6 +124,8 @@ class MPC:
 
         if warm_start:
             self.last_trajectory = sol.value(self.u_sym)
+            self.lt_lam_g = sol.value(self.opti.lam_g)
+            
         
         return u
 
