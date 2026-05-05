@@ -18,11 +18,13 @@ class MPPI_Torch:
         dynamics_func,
         term_cost_func,
         cost_func,
-        inverse_temp=10,
-        alpha=0.99,
-        K=1000,
+        bound_control_func,
+        inverse_temp=1,
+        alpha=0.01,
+        gamma=0.1,
+        K=5000,
         step=0.02,
-        T=150,
+        T=100,
     ):
         """ 
         """
@@ -30,9 +32,10 @@ class MPPI_Torch:
         self.dynamics = dynamics_func
         self.term_cost = term_cost_func
         self.cost = cost_func
+        self.bound_control = bound_control_func
         self.alpha = alpha
         self.inverse_temp = inverse_temp
-        self.gamma = self.inverse_temp * (1 - self.alpha)
+        self.gamma = gamma
         self.K = K
 
         self.x_d = x_d
@@ -40,7 +43,7 @@ class MPPI_Torch:
         self.T = T
 
         self.step = step
-        self.cv = torch.eye(u_d) * 10
+        self.cv = torch.eye(u_d) * 50
 
         self.inv_cv = torch.inverse(self.cv)
 
@@ -61,9 +64,13 @@ class MPPI_Torch:
 
         v = u + noise
 
-        backup = round(self.K * (1 - self.alpha))
 
-        v[:, backup:] = noise[:, backup:]
+        prev = round(self.K * (1 - self.alpha))
+
+        v[:, prev:] = noise[:, prev:]
+
+        v = self.bound_control(v)
+        noise.copy_(v - u)
 
         S = torch.zeros(self.K)
 
@@ -84,6 +91,7 @@ class MPPI_Torch:
     def _weights(self, costs: torch.Tensor) -> torch.Tensor:
         weights = torch.exp(-(costs - costs.min()) / self.inverse_temp)
         return weights / weights.sum()
+    
 
     def run_mpc(self, x, verbose=True, warm_start=True):
         """

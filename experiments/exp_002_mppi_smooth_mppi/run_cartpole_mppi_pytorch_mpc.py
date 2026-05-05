@@ -56,18 +56,24 @@ def constraints(x, u):
 )
 
 def cost(x, u, t):
-    print(constraints(x, u).nonzero().sum())
-    return x[:, 2] ** 2  + x[:, 0] ** 2  + 1**t * 10_000 * constraints(x, u).squeeze() #+ x[:, 3]**2 /10
+    
+    return x[:, 2] ** 2  + x[:, 0] ** 2  + 1**t * 10_00 * constraints(x, u).squeeze() #+ x[:, 3]**2 /10
 
 def term_cost(x, u):
-    return x[:, 3]**2 / 10 # torch.sum(x**2, axis=1)
+    print(constraints(x, u).sum())
+    return x[:, 3]**2 + x[:, 1]**2 # torch.sum(x**2, axis=1)
+
+def bound_control(u):
+    return torch.clamp(u, -FORCE, FORCE)
+
+
 
 def run_mpc():
     env = CartPoleEnv(render_mode="human")
 
     env.reset()
 
-    mpc = MPPI_Torch(4, 1, gen_dynamics, term_cost, cost)
+    mpc = MPPI_Torch(4, 1, gen_dynamics, term_cost, cost, bound_control)
     
     observation, reward, terminated, truncated, info = env.step(0)
 
