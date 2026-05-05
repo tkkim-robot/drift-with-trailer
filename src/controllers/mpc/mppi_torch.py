@@ -2,6 +2,7 @@ import torch
 from scipy.signal import savgol_filter
 from scipy.stats import norm
 import numpy as np
+from torch.distributions.multivariate_normal import MultivariateNormal
 
 
 
@@ -17,12 +18,12 @@ class MPPI_Torch:
         dynamics_func,
         term_cost_func,
         cost_func,
-        inverse_temp=12.5,
+        inverse_temp=12,
         alpha=0.99,
         gamma=0.1,
-        K=1000,
+        K=5000,
         step=0.02 * 2,
-        n=20,
+        n=90,
     ):
         """ 
         """
@@ -40,9 +41,12 @@ class MPPI_Torch:
         self.T = n
 
         self.step = step
-        self.cv = torch.eye(u_d) * 5 
+        self.cv = torch.eye(u_d) * 30
 
         self.inv_cv = torch.inverse(self.cv)
+
+        self.dist = MultivariateNormal(torch.zeros(self.u_d), self.cv)
+
 
     def _forward_sim(self, x: torch.Tensor, u: torch.Tensor, noise: torch.Tensor):
         """
@@ -55,53 +59,28 @@ class MPPI_Torch:
         Returns:
             ca.SX: Next state
         """
+
         v = u + noise
 
         S = torch.zeros(self.K)
 
         for i in range(self.T):
             x += self.dynamics(x, v[i, :]) * self.step
+            # print("aach", ((u[i, :].unsqueeze(1) @ self.inv_cv @ noise[i, :].unsqueeze(2)).squeeze(-1).squeeze(-1)).shape)
+            
             S += (
                 self.cost(x, v[i, :], i)
                 - self.gamma # why subtract??
-                * torch.transpose(u[i, :].unsqueeze(0), 0, 1)
-                @ self.inv_cv
-                @ noise[i, :]
+                * (u[i, :].unsqueeze(1) @ self.inv_cv @ noise[i, :].unsqueeze(2)).squeeze(-1).squeeze(-1)
             )  # check last indexing, fix wrong matmul
 
-        S += self.term_cost(x, u[-1, :])
+        if self.term_cost:
+            S += self.term_cost(x, u[-1, :])
         return S
 
     def _weights(self, costs: torch.Tensor) -> torch.Tensor:
         weights = torch.exp(-(costs - costs.min()) / self.inverse_temp)
         return weights / weights.sum()
-
-    # def setup_mpc(self):
-    #     """
-    #     Formulates problem, sets constraints
-
-    #     Returns:
-    #         ca.SX: Controls (u)
-    #     """
-    #     x = self.x0
-    #     u = self.opti.variable(self.n, self.u_d)
-    #     J = 0
-
-    #     for i in range(self.n):
-    #         x = self._euler_step(x, u[i])
-
-    #         J += self.cost(x, u[i])
-    #         self.constraint(self.opti, x, u[i])
-
-    #     if self.term_cost:
-    #         J += self.term_cost(x, u[0], u[-1])
-
-    #     self.opti.minimize(J)
-
-    #     if self.term_constraint:
-    #         self.term_constraint(self.opti, x, u[0], u[-1])
-
-    #     return u
 
     def run_mpc(self, x, verbose=True, warm_start=True):
         """
@@ -115,32 +94,29 @@ class MPPI_Torch:
             ca.SX: u
         """
 
-        u = torch.zeros(self.u_d)
+        u = torch.zeros(self.T, self.u_d)
 
         if warm_start and self.last_trajectory is not None:
-            u[1:] = self.last_trajectory[1:]
+            u[:-1] = self.last_trajectory[1:]
 
         x_batch = x.unsqueeze(0).repeat(self.K, 1)
-        u_batch = u.unsqueeze(0).repeat(self.K, 1)
+        u_batch = u.unsqueeze(0).repeat(self.K, 1, 1).permute(1, 0, 2)
 
-        noise = torch.from_numpy(
-            np.random.multivariate_normal(
-                np.zeros(self.u_d), self.cv.numpy(), size=(self.T, self.K)
-            )
-        )
+        noise = self.dist.sample(u_batch.shape).squeeze(-1)
 
         costs = self._forward_sim(x_batch, u_batch, noise)
 
         weights = self._weights(costs)
 
-        weighted_noise = weights * noise
+        weighted_noise = torch.sum(weights.view(1, -1, 1) * noise, dim=1)
+
 
         filtered = savgol_filter(
             weighted_noise, window_length=5, polyorder=3, axis=0
-        )  # no idea if correct
+        ) 
 
         u += filtered
 
         self.last_trajectory = u
 
-        return u[0]
+        return u[0][0]

@@ -52,20 +52,20 @@ def constraints(x, u):
 )
 
 def cost(x, u, t):
-    return x[2] ** 2 + x[0] ** 2 + 0.9**t * 10_000 * constraints(x, u)
+    return x[:, 2] ** 2 + x[:, 0] ** 2 + 0.9**t * 10_000 * constraints(x, u).squeeze()
 
 def run_mpc():
     env = CartPoleEnv(render_mode="human")
 
     env.reset()
 
-    mpc = MPPI_Torch(4, 1, gen_dynamics, None, cost, constraints)
+    mpc = MPPI_Torch(4, 1, gen_dynamics, None, cost)
     
     observation, reward, terminated, truncated, info = env.step(0)
 
     while True:
         u = mpc.run_mpc(torch.from_numpy(observation))
-        observation, reward, terminated, truncated, info = env.step(np.clip(u, -FORCE, FORCE))
+        observation, reward, terminated, truncated, info = env.step(np.clip(float(u.numpy()), -FORCE, FORCE))
 
         if terminated: 
             break
