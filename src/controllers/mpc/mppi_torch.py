@@ -22,9 +22,10 @@ class MPPI_Torch:
         inverse_temp=1,
         alpha=0.01,
         gamma=0.1,
-        K=5000,
+        K=20000,
         step=0.02,
         T=100,
+        device="mps"
     ):
         """ 
         """
@@ -37,17 +38,18 @@ class MPPI_Torch:
         self.inverse_temp = inverse_temp
         self.gamma = gamma
         self.K = K
+        self.device = torch.device(device)
 
         self.x_d = x_d
         self.u_d = u_d
         self.T = T
 
         self.step = step
-        self.cv = torch.eye(u_d) * 50
+        self.cv = torch.eye(u_d, device=device) * 10
 
         self.inv_cv = torch.inverse(self.cv)
 
-        self.dist = MultivariateNormal(torch.zeros(self.u_d), self.cv)
+        self.dist = MultivariateNormal(torch.zeros(self.u_d, device=device), self.cv)
 
 
     def _forward_sim(self, x: torch.Tensor, u: torch.Tensor, noise: torch.Tensor):
@@ -63,26 +65,22 @@ class MPPI_Torch:
         """
 
         v = u + noise
-
-
         prev = round(self.K * (1 - self.alpha))
-
         v[:, prev:] = noise[:, prev:]
-
         v = self.bound_control(v)
         noise.copy_(v - u)
 
-        S = torch.zeros(self.K)
+        S = torch.zeros(self.K, device=self.device)
 
         for i in range(self.T):
             x += self.dynamics(x, v[i, :]) * self.step
-            # print("aach", ((u[i, :].unsqueeze(1) @ self.inv_cv @ noise[i, :].unsqueeze(2)).squeeze(-1).squeeze(-1)).shape)
             
+            # print(u.device, self.inv_cv.device, noise.device)
             S += (
                 self.cost(x, v[i, :], i)
-                + self.gamma # why subtract??
+                - self.gamma
                 * (u[i, :].unsqueeze(1) @ self.inv_cv @ noise[i, :].unsqueeze(2)).squeeze(-1).squeeze(-1)
-            )  # check last indexing, fix wrong matmul
+            )
 
         if self.term_cost:
             S += self.term_cost(x, u[-1, :])
@@ -105,30 +103,24 @@ class MPPI_Torch:
             ca.SX: u
         """
 
-        u = torch.zeros(self.T, self.u_d)
+        u = torch.zeros(self.T, self.u_d, device=self.device)
 
         if warm_start and self.last_trajectory is not None:
             u[:-1] = self.last_trajectory[1:]
-            # u[-1] = 0
+
+        x = torch.from_numpy(x).to(self.device)
 
         x_batch = x.unsqueeze(0).repeat(self.K, 1)
-        u_batch = u.unsqueeze(0).repeat(self.K, 1, 1).permute(1, 0, 2)
+        u_batch = u.unsqueeze(0).repeat(self.K, 1, 1).permute(1, 0, 2) # this is terrible
 
         noise = self.dist.sample(u_batch.shape[:-1])
 
         costs = self._forward_sim(x_batch, u_batch, noise)
 
         weights = self._weights(costs)
-
         weighted_noise = torch.sum(weights.view(1, -1, 1) * noise, dim=1)
-
-
-        # filtered = savgol_filter(
-        #     weighted_noise, window_length=2, polyorder=3, axis=0
-        # ) 
-
         u += weighted_noise
 
         self.last_trajectory = u
 
-        return u[0]
+        return u[0].cpu()

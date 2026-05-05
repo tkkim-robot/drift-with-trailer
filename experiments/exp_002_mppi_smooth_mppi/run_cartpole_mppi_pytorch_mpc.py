@@ -60,7 +60,7 @@ def cost(x, u, t):
     return x[:, 2] ** 2  + x[:, 0] ** 2  + 1**t * 10_00 * constraints(x, u).squeeze() #+ x[:, 3]**2 /10
 
 def term_cost(x, u):
-    print(constraints(x, u).sum())
+    # print(constraints(x, u).sum())
     return x[:, 3]**2 + x[:, 1]**2 # torch.sum(x**2, axis=1)
 
 def bound_control(u):
@@ -78,9 +78,9 @@ def run_mpc():
     observation, reward, terminated, truncated, info = env.step(0)
 
     while True:
-        u = mpc.run_mpc(torch.from_numpy(observation))
+        u = mpc.run_mpc(observation)
         action = np.clip(float(u[0].numpy()), -FORCE, FORCE)
-        print(action)
+        # print(action)
         observation, reward, terminated, truncated, info = env.step(action)
 
         if terminated: 
