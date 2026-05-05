@@ -18,12 +18,11 @@ class MPPI_Torch:
         dynamics_func,
         term_cost_func,
         cost_func,
-        inverse_temp=12,
+        inverse_temp=10,
         alpha=0.99,
-        gamma=0.1,
-        K=5000,
-        step=0.02 * 2,
-        n=90,
+        K=1000,
+        step=0.02,
+        T=150,
     ):
         """ 
         """
@@ -32,16 +31,16 @@ class MPPI_Torch:
         self.term_cost = term_cost_func
         self.cost = cost_func
         self.alpha = alpha
-        self.gamma = gamma
         self.inverse_temp = inverse_temp
+        self.gamma = self.inverse_temp * (1 - self.alpha)
         self.K = K
 
         self.x_d = x_d
         self.u_d = u_d
-        self.T = n
+        self.T = T
 
         self.step = step
-        self.cv = torch.eye(u_d) * 30
+        self.cv = torch.eye(u_d) * 10
 
         self.inv_cv = torch.inverse(self.cv)
 
@@ -62,6 +61,10 @@ class MPPI_Torch:
 
         v = u + noise
 
+        backup = round(self.K * (1 - self.alpha))
+
+        v[:, backup:] = noise[:, backup:]
+
         S = torch.zeros(self.K)
 
         for i in range(self.T):
@@ -70,7 +73,7 @@ class MPPI_Torch:
             
             S += (
                 self.cost(x, v[i, :], i)
-                - self.gamma # why subtract??
+                + self.gamma # why subtract??
                 * (u[i, :].unsqueeze(1) @ self.inv_cv @ noise[i, :].unsqueeze(2)).squeeze(-1).squeeze(-1)
             )  # check last indexing, fix wrong matmul
 
@@ -98,11 +101,12 @@ class MPPI_Torch:
 
         if warm_start and self.last_trajectory is not None:
             u[:-1] = self.last_trajectory[1:]
+            # u[-1] = 0
 
         x_batch = x.unsqueeze(0).repeat(self.K, 1)
         u_batch = u.unsqueeze(0).repeat(self.K, 1, 1).permute(1, 0, 2)
 
-        noise = self.dist.sample(u_batch.shape).squeeze(-1)
+        noise = self.dist.sample(u_batch.shape[:-1])
 
         costs = self._forward_sim(x_batch, u_batch, noise)
 
@@ -111,12 +115,12 @@ class MPPI_Torch:
         weighted_noise = torch.sum(weights.view(1, -1, 1) * noise, dim=1)
 
 
-        filtered = savgol_filter(
-            weighted_noise, window_length=5, polyorder=3, axis=0
-        ) 
+        # filtered = savgol_filter(
+        #     weighted_noise, window_length=2, polyorder=3, axis=0
+        # ) 
 
-        u += filtered
+        u += weighted_noise
 
         self.last_trajectory = u
 
-        return u[0][0]
+        return u[0]

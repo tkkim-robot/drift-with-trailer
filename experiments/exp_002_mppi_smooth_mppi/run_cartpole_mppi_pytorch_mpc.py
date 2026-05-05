@@ -5,6 +5,7 @@ import casadi as ca
 import numpy as np
 import torch
 
+
 # Constants
 POLE_LEN = 0.5
 FORCE = 10
@@ -16,10 +17,12 @@ TOTAL_MASS = POLE_MASS + CART_MASS
 POLEMASS_LENGTH = POLE_MASS * POLE_LEN
 
 def gen_dynamics(x, u):
+    u = torch.clamp(u, -FORCE, FORCE)
+
     x_c = x[:, 0].unsqueeze(1)
     d_x_c = x[:, 1].unsqueeze(1)
-    theta = x[:, 1].unsqueeze(1)
-    theta_dot = x[:, 2].unsqueeze(1)
+    theta = x[:, 2].unsqueeze(1)
+    theta_dot = x[:, 3].unsqueeze(1)
 
     # x_c, d_x_c, theta, theta_dot = torch.transpose(x, 0, 1)
 
@@ -45,27 +48,34 @@ def gen_dynamics(x, u):
 def constraints(x, u):
     x_threshold = 2.4
 
-    return torch.logical_and(
+    return torch.logical_not(
+        # torch.logical_and(
         torch.logical_and(-x_threshold <= x[:, 0].unsqueeze(1), x[:, 0].unsqueeze(1) <= x_threshold),
-        torch.logical_and(-FORCE <= u, u <= FORCE)
+        # torch.logical_and(-FORCE <= u, u <= FORCE))
     
 )
 
 def cost(x, u, t):
-    return x[:, 2] ** 2 + x[:, 0] ** 2 + 0.9**t * 10_000 * constraints(x, u).squeeze()
+    print(constraints(x, u).nonzero().sum())
+    return x[:, 2] ** 2  + x[:, 0] ** 2  + 1**t * 10_000 * constraints(x, u).squeeze() #+ x[:, 3]**2 /10
+
+def term_cost(x, u):
+    return x[:, 3]**2 / 10 # torch.sum(x**2, axis=1)
 
 def run_mpc():
     env = CartPoleEnv(render_mode="human")
 
     env.reset()
 
-    mpc = MPPI_Torch(4, 1, gen_dynamics, None, cost)
+    mpc = MPPI_Torch(4, 1, gen_dynamics, term_cost, cost)
     
     observation, reward, terminated, truncated, info = env.step(0)
 
     while True:
         u = mpc.run_mpc(torch.from_numpy(observation))
-        observation, reward, terminated, truncated, info = env.step(np.clip(float(u.numpy()), -FORCE, FORCE))
+        action = np.clip(float(u[0].numpy()), -FORCE, FORCE)
+        print(action)
+        observation, reward, terminated, truncated, info = env.step(action)
 
         if terminated: 
             break
@@ -74,4 +84,5 @@ def run_mpc():
     env.close()
 
 if __name__ == "__main__":
-    run_mpc()
+    with torch.no_grad():
+        run_mpc()
