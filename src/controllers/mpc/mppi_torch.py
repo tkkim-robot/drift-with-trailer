@@ -13,23 +13,37 @@ class MPPI_Torch:
 
     def __init__(
         self,
-        x_d,
-        u_d,
+        x_d: int,
+        u_d: int,
         dynamics_func,
         term_cost_func,
         cost_func,
         bound_control_func,
         inverse_temp=1,
         alpha=0.01,
-        gamma=0.1,
+        gamma=0.01,
         K=20000,
         step=0.02,
-        T=100,
+        T=70,
         device="mps"
     ):
-        """ 
         """
+        Args:
+            x_d (int): State dimension
+            u_d (int): Control dimension
+            dynamics_func (Callable): Dynamics function
+            term_cost_func (Callable): Terminal cost function
+            cost_func (Callable): Cost function
+            bound_control_func (Callable): Function that bounds controls
+            inverse_temp (int, optional): Actually the temperature. Defaults to 1.
+            alpha (float, optional): Proportion of samples set to just noise. Defaults to 0.01.
+            gamma (float, optional): Cost weight for pertubations. Defaults to 0.1.
+            K (int, optional): Samples. Defaults to 5000.
+            step (float, optional): Time step. Defaults to 0.02.
+            T (int, optional): Time horizon in steps. Defaults to 50.
+        """          
         self.last_trajectory = None
+        self.u_history = torch.zeros((T, u_d))
         self.dynamics = dynamics_func
         self.term_cost = term_cost_func
         self.cost = cost_func
@@ -45,24 +59,25 @@ class MPPI_Torch:
         self.T = T
 
         self.step = step
-        self.cv = torch.eye(u_d, device=device) * 10
+        self.cv = torch.eye(u_d, device=device) * 20
 
         self.inv_cv = torch.inverse(self.cv)
 
         self.dist = MultivariateNormal(torch.zeros(self.u_d, device=device), self.cv)
 
 
-    def _forward_sim(self, x: torch.Tensor, u: torch.Tensor, noise: torch.Tensor):
+    def _forward_sim(self, x: torch.Tensor, u: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
         """
         Uses Euler's method to integrate the dynamics
 
         Args:
-            x (ca.SX): States
-            u (ca.SX): Controls
+            x (torch.Tensor): State (T, K, x_d)
+            u (torch.Tensor): Control (T, K, u_d)
+            noise (torch.Tensor): Noise (T, K, u_d)
 
         Returns:
-            ca.SX: Next state
-        """
+            torch.Tensor: Cost per sample (K)
+        """        
 
         v = u + noise
         prev = round(self.K * (1 - self.alpha))
@@ -87,25 +102,34 @@ class MPPI_Torch:
         return S
 
     def _weights(self, costs: torch.Tensor) -> torch.Tensor:
+        """
+        Computes weights
+
+        Args:
+            costs (torch.Tensor): Costs (K)
+
+        Returns:
+            torch.Tensor: Weights (K)
+        """        
         weights = torch.exp(-(costs - costs.min()) / self.inverse_temp)
         return weights / weights.sum()
     
 
-    def run_mpc(self, x, verbose=True, warm_start=True):
+    def run_mpc(self, x: torch.Tensor, verbose=True) -> torch.Tensor:
         """
         Runs a single MPC solve.
+
         Args:
-            x (np.ndarray): Measured stat
+            x (torch.Tensor): State (x_d)
             verbose (bool, optional): _description_. Defaults to True.
-            warm_start (bool, optional): _description_. Defaults to True.
 
         Returns:
-            ca.SX: u
-        """
+            torch.Tensor: Control output
+        """        
 
         u = torch.zeros(self.T, self.u_d, device=self.device)
 
-        if warm_start and self.last_trajectory is not None:
+        if self.last_trajectory is not None:
             u[:-1] = self.last_trajectory[1:]
 
         x = torch.from_numpy(x).to(self.device)
@@ -121,6 +145,11 @@ class MPPI_Torch:
         weighted_noise = torch.sum(weights.view(1, -1, 1) * noise, dim=1)
         u += weighted_noise
 
+        u_padded = torch.cat([self.u_history, u.cpu()])
+        u_smoothed = torch.from_numpy(savgol_filter(u_padded.cpu().numpy(), 5, 3, axis=0)[-self.T:])
+        # u = torch.from_numpy(u_smoothed[-self.T:])
+        self.u_history = torch.roll(self.u_history, -1, dims=0)
+        self.u_history[-1] = u_smoothed[0]
         self.last_trajectory = u
 
-        return u[0].cpu()
+        return u_smoothed[0]
