@@ -201,7 +201,7 @@ class MPPI_Jax:
             u = jnp.zeros((self.T, self.u_d))
         else:
             u = jnp.roll(self.last_trajectory, -1, axis=1)
-            u = u.at[-1].set(0)
+            u = u.at[-1].set(0) 
 
         x = jnp.asarray(x)
 
@@ -210,7 +210,8 @@ class MPPI_Jax:
         x_batch = jnp.repeat(jnp.expand_dims(x, 0), self.K, axis=0)
         u_batch = jnp.repeat(jnp.expand_dims(u, 0), self.K, axis=0)
 
-        noise = jax.random.normal(self.key, u_batch.shape) * jnp.sqrt(self.cv)
+        self.key, subkey = jax.random.split(self.key)
+        noise = jax.random.normal(subkey, u_batch.shape) * jnp.sqrt(self.cv)
 
         costs = self._forward_sim(x_batch, u_batch, noise)
 
