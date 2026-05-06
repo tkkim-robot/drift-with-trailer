@@ -1,5 +1,5 @@
 from src.simulation.cartpole_env import CartPoleEnv
-from src.controllers.mpc.mppi_torch import MPPI_Torch
+from src.controllers.mpc.smppi_torch import SMPPI_Torch
 
 import casadi as ca
 import numpy as np
@@ -56,6 +56,7 @@ def constraints(x, u):
 )
 
 def cost(x, u, t):
+    
     return x[:, 2] ** 2  + x[:, 0] ** 2  + 1**t * 10_00 * constraints(x, u).squeeze() #+ x[:, 3]**2 /10
 
 def term_cost(x, u):
@@ -71,7 +72,7 @@ def run_mpc():
 
     env.reset()
 
-    mpc = MPPI_Torch(4, 1, gen_dynamics, term_cost, cost, bound_control)
+    mpc = SMPPI_Torch(4, 1, gen_dynamics, term_cost, cost, bound_control)
     
     observation, reward, terminated, truncated, info = env.step(0)
 
@@ -79,6 +80,7 @@ def run_mpc():
         u = mpc.run_mpc(observation)
         # print(u, u.type)
         action = np.clip(float(u[0].numpy()), -FORCE, FORCE)
+        print(action)
         observation, reward, terminated, truncated, info = env.step(action)
 
         if terminated: 

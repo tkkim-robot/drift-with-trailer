@@ -21,10 +21,11 @@ class SMPPI_Torch:
         bound_control_func,
         inverse_temp=1,
         alpha=0.01,
-        gamma=0.1,
+        gamma=0.01,
+        omega=torch.eye(1, device="mps") * 1e-2,
         K=20000,
         step=0.02,
-        T=70,
+        T=50,
         device="mps"
     ):
         """
@@ -43,7 +44,6 @@ class SMPPI_Torch:
             T (int, optional): Time horizon in steps. Defaults to 50.
         """          
         self.last_trajectory = None
-        self.u_history = torch.zeros((T, u_d))
         self.dynamics = dynamics_func
         self.term_cost = term_cost_func
         self.cost = cost_func
@@ -51,28 +51,31 @@ class SMPPI_Torch:
         self.alpha = alpha
         self.inverse_temp = inverse_temp
         self.gamma = gamma
+        self.omega = omega
         self.K = K
+        
         self.device = torch.device(device)
-
+        
         self.x_d = x_d
         self.u_d = u_d
         self.T = T
 
         self.step = step
-        self.cv = torch.eye(u_d, device=device) * 20
-
+        self.cv = torch.eye(u_d, device=device) * 100
+        
         self.inv_cv = torch.inverse(self.cv)
 
         self.dist = MultivariateNormal(torch.zeros(self.u_d, device=device), self.cv)
 
 
-    def _forward_sim(self, x: torch.Tensor, u: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
+    def _forward_sim(self, x: torch.Tensor, u: torch.Tensor, a: torch.Tensor, noise: torch.Tensor) -> torch.Tensor:
         """
         Uses Euler's method to integrate the dynamics
 
         Args:
             x (torch.Tensor): State (T, K, x_d)
             u (torch.Tensor): Control (T, K, u_d)
+            a (torch.Tensor): Previous action
             noise (torch.Tensor): Noise (T, K, u_d)
 
         Returns:
@@ -80,26 +83,37 @@ class SMPPI_Torch:
         """        
 
         v = u + noise
+        new_a = a + v
+        # a = a0.repeat(self.K, 1)
+
         prev = round(self.K * (1 - self.alpha))
         v[:, prev:] = noise[:, prev:]
-        v = self.bound_control(v)
-        noise.copy_(v - u)
+        new_a = self.bound_control(new_a)
+        noise.copy_(new_a - a - u)
 
         S = torch.zeros(self.K, device=self.device)
 
         for i in range(self.T):
-            x += self.dynamics(x, v[i, :]) * self.step
+            x += self.dynamics(x, new_a[i, :]) * self.step
             
             # print(u.device, self.inv_cv.device, noise.device)
             S += (
-                self.cost(x, v[i, :], i)
+                self.cost(x, new_a[i, :], i)
                 - self.gamma
                 * (u[i, :].unsqueeze(1) @ self.inv_cv @ noise[i, :].unsqueeze(2)).squeeze(-1).squeeze(-1)
             )
 
         if self.term_cost:
             S += self.term_cost(x, u[-1, :])
+
+        S += self._smoothing_cost(new_a)
+
         return S
+
+    def _smoothing_cost(self, a: torch.Tensor) -> torch.Tensor:
+        diff = a - torch.roll(a, 1, dims=0)
+ 
+        return torch.einsum("tbn,nn,tbn->b", diff, self.omega, diff)
 
     def _weights(self, costs: torch.Tensor) -> torch.Tensor:
         """
@@ -128,28 +142,27 @@ class SMPPI_Torch:
         """        
 
         u = torch.zeros(self.T, self.u_d, device=self.device)
+        a = torch.zeros(self.T, self.u_d, device=self.device)
 
         if self.last_trajectory is not None:
-            u[:-1] = self.last_trajectory[1:]
+            # u[:-1] = self.last_trajectory[1:]
+            u_last, a_last = self.last_trajectory
+            u[:-1] = u_last[1:]
+            a[:-1] = a_last[1:]
 
         x = torch.from_numpy(x).to(self.device)
 
         x_batch = x.unsqueeze(0).repeat(self.K, 1)
-        u_batch = u.unsqueeze(0).repeat(self.K, 1, 1).permute(1, 0, 2) # this is terrible
+        u_batch = u.unsqueeze(0).repeat(self.K, 1, 1).permute(1, 0, 2)
+        a_batch = a.unsqueeze(0).repeat(self.K, 1, 1).permute(1, 0, 2)
 
         noise = self.dist.sample(u_batch.shape[:-1])
 
-        costs = self._forward_sim(x_batch, u_batch, noise)
+        costs = self._forward_sim(x_batch, u_batch, a_batch, noise)
 
         weights = self._weights(costs)
         weighted_noise = torch.sum(weights.view(1, -1, 1) * noise, dim=1)
         u += weighted_noise
-
-        u_padded = torch.cat([self.u_history, u.cpu()])
-        u_smoothed = torch.from_numpy(savgol_filter(u_padded.cpu().numpy(), 5, 3, axis=0)[-self.T:])
-        # u = torch.from_numpy(u_smoothed[-self.T:])
-        self.u_history = torch.roll(self.u_history, -1, dims=0)
-        self.u_history[-1] = u_smoothed[0]
-        self.last_trajectory = u
-
-        return u_smoothed[0]
+        a += u
+        self.last_trajectory = (u, a)
+        return a[0].cpu()

@@ -1,0 +1,3 @@
+from experiments.exp_002_mppi_smooth_mppi.run_cartpole_smppi_pytorch_mpc import run_mpc
+
+run_mpc()
