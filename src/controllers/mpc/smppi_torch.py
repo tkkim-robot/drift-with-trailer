@@ -22,10 +22,9 @@ class SMPPI_Torch:
         inverse_temp=1,
         alpha=0.01,
         gamma=0.01,
-        omega=torch.eye(1, device="mps") * 1e-2,
         K=20000,
         step=0.02,
-        T=50,
+        T=70,
         device="mps"
     ):
         """
@@ -51,7 +50,7 @@ class SMPPI_Torch:
         self.alpha = alpha
         self.inverse_temp = inverse_temp
         self.gamma = gamma
-        self.omega = omega
+        self.omega = torch.eye(1, device=device) * 1e-2
         self.K = K
         
         self.device = torch.device(device)

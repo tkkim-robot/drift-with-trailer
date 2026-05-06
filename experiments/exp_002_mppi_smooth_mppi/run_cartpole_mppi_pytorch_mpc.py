@@ -1,10 +1,9 @@
 from src.simulation.cartpole_env import CartPoleEnv
 from src.controllers.mpc.mppi_torch import MPPI_Torch
 
-import casadi as ca
 import numpy as np
 import torch
-
+import time
 
 # Constants
 POLE_LEN = 0.5
@@ -71,18 +70,28 @@ def run_mpc():
 
     env.reset()
 
-    mpc = MPPI_Torch(4, 1, gen_dynamics, term_cost, cost, bound_control)
+    device = (
+        "cuda" if torch.cuda.is_available() 
+        else "mps" if torch.backends.mps.is_available() 
+        else "cpu"
+    )
+
+    mpc = MPPI_Torch(4, 1, gen_dynamics, term_cost, cost, bound_control, device=device)
     
     observation, reward, terminated, truncated, info = env.step(0)
 
+    i = 0
+
     while True:
+        start = time.perf_counter()
         u = mpc.run_mpc(observation)
-        # print(u, u.type)
         action = np.clip(float(u[0].numpy()), -FORCE, FORCE)
+        print(i, time.perf_counter() - start, action)
         observation, reward, terminated, truncated, info = env.step(action)
 
         if terminated: 
             break
+        i += 1
 
 
     env.close()
