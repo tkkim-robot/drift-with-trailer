@@ -50,7 +50,7 @@ class SMPPI_Torch:
         self.alpha = alpha
         self.inverse_temp = inverse_temp
         self.gamma = gamma
-        self.omega = torch.eye(1, device=device) * 1e-2
+        self.omega = torch.eye(u_d, device=device) * 1e-2
         self.K = K
         
         self.device = torch.device(device)
