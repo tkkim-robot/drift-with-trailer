@@ -116,7 +116,7 @@ class SMPPI_Jax:
         inverse_temp=1,
         alpha=0.01,
         gamma=0.01,
-        K=5000,
+        K=20000,
         step=0.02,
         T=70,
         device="mps",
