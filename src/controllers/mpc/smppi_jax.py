@@ -58,7 +58,7 @@ def rollout(
 
     diff = (new_a - jnp.roll(new_a, 1, axis=0))
 
-    S += jnp.einsum("tn,nm,tm->t", diff, omega, diff)
+    S += jnp.einsum("tn,nm,tm->", diff, omega, diff)
 
     return S
 
@@ -92,7 +92,7 @@ def mpc_step(x, last_trajectory, u_d, key, K, T, cv, inverse_temp, forward_sim):
     weights = jnp.exp(-(costs - costs.min()) / inverse_temp)
     weights = weights / weights.sum()
 
-    weighted_noise = jnp.sum(weights.reshape(K, T, u_d) * bounded_noise, axis=0)
+    weighted_noise = jnp.sum(weights.reshape(K, 1, 1) * bounded_noise, axis=0)
     u = u + weighted_noise
 
     a = a + u
@@ -116,7 +116,7 @@ class SMPPI_Jax:
         inverse_temp=1,
         alpha=0.01,
         gamma=0.01,
-        K=20000,
+        K=5000,
         step=0.02,
         T=70,
         device="mps",
