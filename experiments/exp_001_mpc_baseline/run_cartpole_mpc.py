@@ -61,11 +61,11 @@ ipopt_settings = {
     "ipopt.mu_strategy": "adaptive",
     "ipopt.nlp_scaling_method": "gradient-based",
     "ipopt.bound_relax_factor": 1e-4,
-    # "ipopt.hessian_approximation": "exact",
+    "ipopt.hessian_approximation": "exact",
     "ipopt.tol": 1e-4,
-    "ipopt.hessian_approximation": "limited-memory",
-    "ipopt.limited_memory_max_history": 10,
-    "ipopt.limited_memory_update_type": "bfgs",
+    # "ipopt.hessian_approximation": "limited-memory",
+    # "ipopt.limited_memory_max_history": 10,
+    # "ipopt.limited_memory_update_type": "bfgs",
     "ipopt.derivative_test": "none",
 }
 
