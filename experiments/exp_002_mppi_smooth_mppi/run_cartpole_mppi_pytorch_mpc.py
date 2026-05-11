@@ -85,7 +85,7 @@ def run_mpc():
     while True:
         start = time.perf_counter()
         u = mpc.run_mpc(observation)
-        action = np.clip(float(u[0].numpy()), -FORCE, FORCE)
+        action = np.clip(float(u[0]), -FORCE, FORCE)
         print(i, time.perf_counter() - start, action)
         observation, reward, terminated, truncated, info = env.step(action)
 

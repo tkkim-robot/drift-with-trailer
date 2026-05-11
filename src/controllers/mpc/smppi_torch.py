@@ -128,13 +128,12 @@ class SMPPI_Torch:
         return weights / weights.sum()
     
 
-    def run_mpc(self, x: torch.Tensor, verbose=True) -> torch.Tensor:
+    def run_mpc(self, x: torch.Tensor) -> torch.Tensor:
         """
         Runs a single MPC solve.
 
         Args:
             x (torch.Tensor): State (x_d)
-            verbose (bool, optional): _description_. Defaults to True.
 
         Returns:
             torch.Tensor: Control output
@@ -164,4 +163,4 @@ class SMPPI_Torch:
         u += weighted_noise
         a += u
         self.last_trajectory = (u, a)
-        return a[0].cpu()
+        return a[0].cpu().numpy()

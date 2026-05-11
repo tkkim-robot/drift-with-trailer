@@ -183,13 +183,12 @@ class MPPI_Jax:
 
         return S, noise
 
-    def run_mpc(self, x: ArrayLike, verbose=True) -> torch.Tensor:
+    def run_mpc(self, x: ArrayLike) -> torch.Tensor:
         """
         Runs a single MPC solve.
 
         Args:
             x (torch.Tensor): State (x_d)
-            verbose (bool, optional): _description_. Defaults to True.
 
         Returns:
             torch.Tensor: Control output

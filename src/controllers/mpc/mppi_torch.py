@@ -115,13 +115,12 @@ class MPPI_Torch:
         return weights / weights.sum()
     
 
-    def run_mpc(self, x: torch.Tensor, verbose=True) -> torch.Tensor:
+    def run_mpc(self, x: torch.Tensor) -> torch.Tensor:
         """
         Runs a single MPC solve.
 
         Args:
             x (torch.Tensor): State (x_d)
-            verbose (bool, optional): _description_. Defaults to True.
 
         Returns:
             torch.Tensor: Control output
@@ -152,4 +151,4 @@ class MPPI_Torch:
         self.u_history[-1] = u_smoothed[0]
         self.last_trajectory = u
 
-        return u_smoothed[0]
+        return u_smoothed[0].numpy()
