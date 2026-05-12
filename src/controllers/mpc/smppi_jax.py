@@ -144,7 +144,7 @@ class SMPPI_Jax:
         self.alpha = alpha
         self.inverse_temp = inverse_temp
         self.gamma = gamma
-        self.omega = jnp.identity(u_d) * 1e-2
+        self.omega = jnp.identity(u_d) * 2e-2
         self.K = K
         self.device = device
 
@@ -153,7 +153,7 @@ class SMPPI_Jax:
         self.T = T
 
         self.step = step
-        self.cv = jnp.eye(u_d) * 20
+        self.cv = jnp.eye(u_d) * 0.7
 
         self.inv_cv = jnp.linalg.inv(self.cv)
 

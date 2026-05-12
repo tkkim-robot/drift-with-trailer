@@ -59,7 +59,7 @@ class MPPI_Torch:
         self.T = T
 
         self.step = step
-        self.cv = torch.eye(u_d, device=device) * 20
+        self.cv = torch.eye(u_d, device=device) * 3
 
         self.inv_cv = torch.inverse(self.cv)
 

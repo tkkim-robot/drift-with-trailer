@@ -140,7 +140,7 @@ class MPPI_Jax:
         self.T = T
 
         self.step = step
-        self.cv = jnp.eye(u_d) * 20
+        self.cv = jnp.eye(u_d) * 3
 
         self.inv_cv = jnp.linalg.inv(self.cv)
 
