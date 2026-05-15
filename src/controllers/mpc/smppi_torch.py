@@ -98,7 +98,7 @@ class SMPPI_Torch:
             # print(u.device, self.inv_cv.device, noise.device)
             S += (
                 self.cost(x, new_a[i, :], i)
-                - self.gamma
+                + self.gamma
                 * (u[i, :].unsqueeze(1) @ self.inv_cv @ noise[i, :].unsqueeze(2)).squeeze(-1).squeeze(-1)
             )
 

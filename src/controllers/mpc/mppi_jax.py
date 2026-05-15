@@ -43,7 +43,7 @@ def rollout(
         u, v, bounded_noise = control
 
         new_x = x + dynamics(x, v) * step
-        new_S = S + cost(new_x, v, i) - gamma * jnp.einsum("n,nm,m->", u, inv_cv, bounded_noise)
+        new_S = S + cost(new_x, v, i) + gamma * jnp.einsum("n,nm,m->", u, inv_cv, bounded_noise)
         new_i = i + 1
 
         new_carry = new_x, new_S, new_i
@@ -206,11 +206,11 @@ class MPPI_Jax:
             self._forward_sim,
         )
 
-        u_padded = jnp.concatenate([self.u_history, u])
-        u_smoothed = jnp.array(savgol_filter(np.array(u_padded), 5, 3, axis=0)[-self.T :])
+        # u_padded = jnp.concatenate([self.u_history, u])
+        # u_smoothed = jnp.array(savgol_filter(np.array(u_padded), 5, 3, axis=0)[-self.T :])
 
-        self.u_history = jnp.roll(self.u_history, -1, axis=0)
-        self.u_history = self.u_history.at[-1].set(u[0])
+        # self.u_history = jnp.roll(self.u_history, -1, axis=0)
+        # self.u_history = self.u_history.at[-1].set(u[0])
         self.last_trajectory = u
 
-        return u_smoothed[0]
+        return u[0]

@@ -93,7 +93,7 @@ class MPPI_Torch:
             # print(u.device, self.inv_cv.device, noise.device)
             S += (
                 self.cost(x, v[i, :], i)
-                - self.gamma
+                + self.gamma
                 * (u[i, :].unsqueeze(1) @ self.inv_cv @ noise[i, :].unsqueeze(2)).squeeze(-1).squeeze(-1)
             )
 
@@ -144,11 +144,11 @@ class MPPI_Torch:
         weighted_noise = torch.sum(weights.view(1, -1, 1) * noise, dim=1)
         u += weighted_noise
 
-        u_padded = torch.cat([self.u_history, u.cpu()])
-        u_smoothed = torch.from_numpy(savgol_filter(u_padded.cpu().numpy(), 5, 3, axis=0)[-self.T:])
-        # u = torch.from_numpy(u_smoothed[-self.T:])
-        self.u_history = torch.roll(self.u_history, -1, dims=0)
-        self.u_history[-1] = u_smoothed[0]
+        # u_padded = torch.cat([self.u_history, u.cpu()])
+        # u_smoothed = torch.from_numpy(savgol_filter(u_padded.cpu().numpy(), 5, 3, axis=0)[-self.T:])
+        # # u = torch.from_numpy(u_smoothed[-self.T:])
+        # self.u_history = torch.roll(self.u_history, -1, dims=0)
+        # self.u_history[-1] = u_smoothed[0]
         self.last_trajectory = u
 
-        return u_smoothed[0].numpy()
+        return u[0].numpy()

@@ -44,7 +44,7 @@ def rollout(
         u, a, bounded_noise = control
 
         new_x = x + dynamics(x, a) * step
-        new_S = S + cost(new_x, a, i) - gamma * jnp.einsum("n,nm,m->", u, inv_cv, bounded_noise)
+        new_S = S + cost(new_x, a, i) + gamma * jnp.einsum("n,nm,m->", u, inv_cv, bounded_noise)
         new_i = i + 1
 
         new_carry = new_x, new_S, new_i
