@@ -21,7 +21,7 @@ class MPPI_Torch:
         bound_control_func,
         inverse_temp=1,
         alpha=0.01,
-        gamma=0.01,
+        gamma=0.05,
         K=20000,
         step=0.02,
         T=70,
@@ -151,4 +151,4 @@ class MPPI_Torch:
         # self.u_history[-1] = u_smoothed[0]
         self.last_trajectory = u
 
-        return u[0].numpy()
+        return u[0].cpu().numpy()
