@@ -75,7 +75,7 @@ def run_mpc():
     env.reset()
 
 
-    mpc = SMPPI_Jax(4, 1, gen_dynamics, term_cost, cost, bound_control)
+    mpc = SMPPI_Jax(4, 1, gen_dynamics, term_cost, cost, bound_control, jnp.eye(1) * 0.7)
     
     observation, reward, terminated, truncated, info = env.step(0)
     
