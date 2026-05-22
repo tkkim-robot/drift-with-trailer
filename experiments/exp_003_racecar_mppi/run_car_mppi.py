@@ -13,7 +13,7 @@ import jax.numpy as jnp
 
 
 def run_mpc():
-    scenario = "ks_barcelona_layout_gp_dallara_f317_rl_long.yaml" # sample_oval.yaml
+    scenario = "sample_oval.yaml" # sample_oval.yaml ks_barcelona_layout_gp_dallara_f317_rl_long
 
     env = RecordVideo(
         gym.make(
@@ -22,6 +22,8 @@ def run_mpc():
             uncertainty=None,
             renderer="pybullet",
             render_mode="rgb_array_follow",
+            render_width=300,
+            render_height=200,
         ),
         video_folder="gym_videos",
         episode_trigger=lambda x: True,
@@ -33,7 +35,7 @@ def run_mpc():
     )
     dynamics, cost, bound = gen_util_funs(params[0])
 
-    mpc = MPPI_Jax(6, 3, dynamics, None, cost, bound, jnp.diag(jnp.array([1, 0.5, 0.5])), inverse_temp=1)
+    mpc = MPPI_Jax(6, 3, dynamics, None, cost, bound, jnp.diag(jnp.array([0.25, 0.5, 0.5])), inverse_temp=0.5, K=1000, gamma=0.1, step = 0.05, T=30)
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
@@ -47,11 +49,12 @@ def run_mpc():
             mpc_state = jnp.array([state.x, state.y, state.yaw, state.vx, state.vy, state.yaw_rate])
 
             u = mpc.run_mpc(mpc_state)
+            u.block_until_ready() 
 
             print(i, time.perf_counter() - start, u, round(state.progress, 3), round(state.vx, 3), round(state.vy, 3))
-
+            a = time.perf_counter()
             observation, reward, terminated, truncated, info = env.step(u)
-
+            print(time.perf_counter() - a)
             if terminated:
                 break
 

@@ -78,9 +78,9 @@ def gen_util_funs(params: NominalJaxEnvParams):
     @jax.jit
     def cost(x, u, t):
         v_weight = 0
-        p_weight = 1000
+        p_weight = 100
         d_weight = 50
-        ref_v = 15  # increase?
+        ref_v = 300  # increase?
 
         yaw = x[2]
         gvx = x[3] * jnp.cos(yaw) - x[4] * jnp.sin(yaw)
@@ -94,15 +94,17 @@ def gen_util_funs(params: NominalJaxEnvParams):
 
         crossed = progress_gain < -0.5
         track_vel = jnp.where(crossed, track_vel + params.track.length / step, track_vel)
-        progress_gain = jnp.where(crossed, progress_gain + 1, progress_gain)
+        # progress_gain = jnp.where(crossed, progress_gain + 1, progress_gain)
 
         violation = jnp.maximum(
             0, jnp.abs(projection_curr.lateral_error) - params.track.road_half_width + 0.1
         )
 
+
         return (
-            0.9**t * (100_00000 * violation + v_weight * (ref_v - track_vel) ** 2)
-            - p_weight * progress_gain
+            1**t * (10_000_000 * violation + v_weight * (ref_v - track_vel) ** 2) 
+            + 0.1 * jnp.abs(projection_curr.lateral_error)
+            + p_weight * track_vel
         )
 
     @jax.jit

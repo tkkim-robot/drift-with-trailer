@@ -33,7 +33,7 @@ def run_mpc():
     )
     dynamics, cost, bound = gen_util_funs(params[0])
 
-    mpc = SMPPI_Jax(6, 3, dynamics, None, cost, bound, jnp.diag(jnp.array([1, 0.5, 0.5])))
+    mpc = SMPPI_Jax(6, 3, dynamics, None, cost, bound, jnp.diag(jnp.array([0.4, 0.2, 0.2])), inverse_temp=1, K=500, T=40)
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
