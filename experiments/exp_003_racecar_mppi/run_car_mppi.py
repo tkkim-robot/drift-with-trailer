@@ -72,7 +72,6 @@ def run_mpc():
                 round(state.vx, 3),
                 round(state.vy, 3),
             )
-            a = time.perf_counter()
 
             action = jnp.array([u[0], jnp.maximum(u[1], 0), -jnp.minimum(u[1], 0)])
             observation, reward, terminated, truncated, info = env.step(action)

@@ -108,7 +108,7 @@ def gen_util_funs(params: NominalJaxEnvParams):
         return (
             1**t * (10_000_000 * violation + v_weight * (ref_v - track_vel) ** 2)
             # + 0.1 * jnp.abs(projection_curr.lateral_error)
-            - p_weight * track_vel  # sign flip for fwd/rev
+            - p_weight * track_vel * jnp.sign(x[3])  # sign flip for fwd/rev
         )
 
     @jax.jit
