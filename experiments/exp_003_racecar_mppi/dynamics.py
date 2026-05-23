@@ -5,19 +5,15 @@ from typing import NamedTuple
 
 from uncertain_racecar_gym.jax_env import (
     NominalJaxEnvParams,
-    JaxRacecarState,
-    JaxResetOutput,
-    JaxStepOutput,
-    _wrap_angle,
     _project_to_track,
-    _observation,
 )
 
 Array = jax.Array
 
 
-def gen_util_funs(params: NominalJaxEnvParams):
+def gen_util_funs(params: NominalJaxEnvParams, reverse=False):
     step = params.simulation.dt
+    reverse = 1 if reverse else -1
 
     @jax.jit
     def dynamics(
@@ -78,10 +74,7 @@ def gen_util_funs(params: NominalJaxEnvParams):
 
     @jax.jit
     def cost(x, u, t):
-        v_weight = 0
-        p_weight = 1e6
-        d_weight = 50
-        ref_v = -10
+        p_weight = 1e2
 
         yaw = x[2]
         gvx = x[3] * jnp.cos(yaw) - x[4] * jnp.sin(yaw)
@@ -106,9 +99,8 @@ def gen_util_funs(params: NominalJaxEnvParams):
         )
 
         return (
-            1**t * (10_000_000 * violation + v_weight * (ref_v - track_vel) ** 2)
-            # + 0.1 * jnp.abs(projection_curr.lateral_error)
-            - p_weight * track_vel * jnp.sign(x[3])  # sign flip for fwd/rev
+            0.9**t * (10_000_000 * violation)
+            + reverse * p_weight * jnp.abs(track_vel) * jnp.sign(x[3])  # sign flip for fwd/rev
         )
 
     @jax.jit

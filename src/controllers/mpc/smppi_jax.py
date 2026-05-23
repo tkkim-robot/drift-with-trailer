@@ -114,6 +114,7 @@ class SMPPI_Jax:
         cost_func,
         bound_control_func,
         cv,
+        omega,
         inverse_temp=1,
         alpha=0.01,
         gamma=0.01,
@@ -145,7 +146,7 @@ class SMPPI_Jax:
         self.alpha = alpha
         self.inverse_temp = inverse_temp
         self.gamma = gamma
-        self.omega = jnp.identity(u_d) * 2e-2
+        self.omega = omega
         self.K = K
         self.device = device
 

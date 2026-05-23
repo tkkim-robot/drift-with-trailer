@@ -12,7 +12,7 @@ from gymnasium.wrappers import RecordVideo
 import jax.numpy as jnp
 
 
-def run_mpc(scenario):
+def run_mpc(scenario, reverse=False):
 
     env = RecordVideo(
         gym.make(
@@ -20,7 +20,9 @@ def run_mpc(scenario):
             scenario=f"package://scenarios/{scenario}",
             uncertainty=None,
             renderer="pybullet",
-            render_mode="rgb_array_follow",
+            render_mode="rgb_array_birds_eye",
+            render_width=300,
+            render_height=200,
         ),
         video_folder="gym_videos",
         episode_trigger=lambda x: True,
@@ -30,9 +32,23 @@ def run_mpc(scenario):
     params = build_nominal_jax_params(
         scenario=f"package://scenarios/{scenario}",
     )
-    dynamics, cost, bound = gen_util_funs(params[0])
+    dynamics, cost, bound = gen_util_funs(params[0], reverse=reverse)
 
-    mpc = SMPPI_Jax(6, 3, dynamics, None, cost, bound, jnp.diag(jnp.array([0.4, 0.2, 0.2])), inverse_temp=1, K=500, T=40)
+    mpc = SMPPI_Jax(
+        6,
+        2,
+        dynamics,
+        None,
+        cost,
+        bound,
+        jnp.diag(jnp.array([1, 1])),
+        jnp.diag(jnp.array([1, 0.1])),
+        inverse_temp=1,
+        K=350,
+        gamma=0.1,
+        step=0.05,
+        T=45,
+    )
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
@@ -43,13 +59,25 @@ def run_mpc(scenario):
 
             state: VehicleState = env.unwrapped._state
 
-            mpc_state = jnp.array([state.x, state.y, state.yaw, state.vx, state.vy, state.yaw_rate])
+            mpc_state = jnp.array(
+                [state.x, state.y, state.yaw, state.vx, state.vy, state.yaw_rate]
+            )
 
             u = mpc.run_mpc(mpc_state)
+            u.block_until_ready()
 
-            print(i, time.perf_counter() - start, u, round(state.progress, 3), round(state.vx, 3), round(state.vy, 3))
+            elapsed = time.perf_counter() - start
+            print(
+                f"Step: {i:<5d} | "
+                f"Time: {elapsed:<7.3f} | "
+                f"u: {u[0]:<7.3f} {u[1]:<7.3f} | "
+                f"Prog: {state.progress:<6.3f} | "
+                f"vx: {state.vx:<7.3f} | "
+                f"vy: {state.vy:<7.3f}"
+            )
 
-            observation, reward, terminated, truncated, info = env.step(u)
+            action = jnp.array([u[0], jnp.maximum(u[1], 0), -jnp.minimum(u[1], 0)])
+            observation, reward, terminated, truncated, info = env.step(action)
 
             if terminated:
                 break
@@ -60,11 +88,12 @@ def run_mpc(scenario):
             cv2.waitKey(1)
     except KeyboardInterrupt:
         pass
-    
+
     env.close()
 
 
 if __name__ == "__main__":
-    scenario = "sample_oval.yaml"
+    scenario = "ks_barcelona_layout_gp_dallara_f317_rl_long.yaml"
+    # scenario = "sample_oval.yaml"
 
-    run_mpc(scenario)
+    run_mpc(scenario, reverse=False)

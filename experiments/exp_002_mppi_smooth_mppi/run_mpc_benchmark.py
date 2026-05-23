@@ -130,9 +130,9 @@ def bench():
     )
 
     torch_mppi = MPPI_Torch(4, 1, gen_dynamics_torch, term_cost_torch, cost_torch, bound_control_torch, torch.eye(1) * 3, device=device)
-    torch_smppi = SMPPI_Torch(4, 1, gen_dynamics_torch, term_cost_torch, cost_torch, bound_control_torch, torch.eye(1) * 0.7, device=device)
+    torch_smppi = SMPPI_Torch(4, 1, gen_dynamics_torch, term_cost_torch, cost_torch, bound_control_torch, torch.eye(1) * 0.7, torch.eye(1) * 2e-2, device=device)
     jax_mppi = MPPI_Jax(4, 1, gen_dynamics_jax, term_cost_jax, cost_jax, bound_control_jax, jnp.eye(1) * 3)
-    jax_smppi = SMPPI_Jax(4, 1, gen_dynamics_jax, term_cost_jax, cost_jax, bound_control_jax, jnp.eye(1) * 0.7)
+    jax_smppi = SMPPI_Jax(4, 1, gen_dynamics_jax, term_cost_jax, cost_jax, bound_control_jax, jnp.eye(1) * 0.7, jnp.identity(1) * 2e-2)
 
     ctls = [torch_mppi, torch_smppi, jax_mppi, jax_smppi]
     ctl_n = ["PyTorch MPPI", "PyTorch SMPPI", "Jax MPPI", "Jax SMPPI"]
