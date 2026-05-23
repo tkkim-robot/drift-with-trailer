@@ -11,7 +11,7 @@ dependencies = [
     "numpy>=2.0.0",
     "opencv-python>=4.13.0.92",
     "pygame>=2.6.1",
-    "torch",
+    # "torch",
 ]
 
 [dependency-groups]

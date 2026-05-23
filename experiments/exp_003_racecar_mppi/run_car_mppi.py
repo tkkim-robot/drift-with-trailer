@@ -21,7 +21,9 @@ def run_mpc():
             scenario=f"package://scenarios/{scenario}",
             uncertainty=None,
             renderer="pybullet",
-            render_mode="rgb_array_follow",
+            render_mode="rgb_array_birds_eye",
+            render_width=300,
+            render_height=200,
         ),
         video_folder="gym_videos",
         episode_trigger=lambda x: True,
@@ -33,7 +35,20 @@ def run_mpc():
     )
     dynamics, cost, bound = gen_util_funs(params[0])
 
-    mpc = MPPI_Jax(6, 3, dynamics, None, cost, bound, jnp.diag(jnp.array([0.25, 0.5, 0.5])), inverse_temp=1, K=500, gamma=0.1, step = 0.05, T=50)
+    mpc = MPPI_Jax(
+        6,
+        2,
+        dynamics,
+        None,
+        cost,
+        bound,
+        jnp.diag(jnp.array([0.7, 0.5])),
+        inverse_temp=1,
+        K=500,
+        gamma=0.1,
+        step=0.05,
+        T=30,
+    )
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
@@ -47,6 +62,7 @@ def run_mpc():
             mpc_state = jnp.array([state.x, state.y, state.yaw, state.vx, state.vy, state.yaw_rate])
 
             u = mpc.run_mpc(mpc_state)
+            u.block_until_ready()
 
             elapsed = time.perf_counter() - start
             print(
@@ -58,9 +74,10 @@ def run_mpc():
                 f"vy: {state.vy:<7.3f}"
             )
 
-            observation, reward, terminated, truncated, info = env.step(u)
+            action = jnp.array([u[0], jnp.maximum(u[1], 0), -jnp.minimum(u[1], 0)])
+            observation, reward, terminated, truncated, info = env.step(action)
 
-            if terminated:
+            if terminated:  # or truncated:
                 break
 
             i += 1

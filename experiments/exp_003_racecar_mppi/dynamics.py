@@ -17,7 +17,7 @@ Array = jax.Array
 
 
 def gen_util_funs(params: NominalJaxEnvParams):
-    step = 0.05
+    step = params.simulation.dt
 
     @jax.jit
     def dynamics(
@@ -28,8 +28,9 @@ def gen_util_funs(params: NominalJaxEnvParams):
 
         action = jnp.asarray(action, dtype=jnp.float32)
         steer_cmd = jnp.clip(action[0], -1.0, 1.0)
-        throttle_cmd = jnp.clip(action[1], 0.0, 1.0)
-        brake_cmd = jnp.clip(action[2], 0.0, 1.0)
+
+        throttle_cmd = jnp.maximum(action[1], 0.0)
+        brake_cmd = -jnp.minimum(action[1], 0.0)
         dt = params.simulation.dt
         vehicle = params.vehicle
 
@@ -60,7 +61,7 @@ def gen_util_funs(params: NominalJaxEnvParams):
             vehicle.lf * fyf * jnp.cos(steer_angle) - vehicle.lr * fyr
         ) / vehicle.inertia_z
 
-        next_vx = jnp.maximum(0.0, state_xdot + vx_dot * dt)
+        next_vx = state_xdot + vx_dot * dt
         next_vy = state_ydot + vy_dot * dt
         next_yaw_rate = state_yaw_dot + yaw_rate_dot * dt
 
@@ -80,7 +81,7 @@ def gen_util_funs(params: NominalJaxEnvParams):
         v_weight = 0
         p_weight = 1e6
         d_weight = 50
-        ref_v = 15  # increase?
+        ref_v = -10
 
         yaw = x[2]
         gvx = x[3] * jnp.cos(yaw) - x[4] * jnp.sin(yaw)
@@ -88,29 +89,34 @@ def gen_util_funs(params: NominalJaxEnvParams):
 
         projection_curr = _project_to_track(params.track, x[0], x[1])
         projection_next = _project_to_track(params.track, x[0] + step * gvx, x[1] + step * gvy)
-        track_vel = (projection_next.arc_length - projection_curr.arc_length) / step
+        # track_vel = (projection_next.arc_length - projection_curr.arc_length) / step
 
-        progress_gain = projection_next.progress - projection_curr.progress
+        # progress_gain = projection_next.progress - projection_curr.progress
 
-        crossed = progress_gain < -0.5
-        track_vel = jnp.where(crossed, track_vel + params.track.length / step, track_vel)
-        progress_gain = jnp.where(crossed, progress_gain + 1, progress_gain)
+        # crossed = progress_gain < -0.5
+        raw_diff = projection_next.arc_length - projection_curr.arc_length
+        track_vel = (
+            raw_diff - params.track.length * jnp.round(raw_diff / params.track.length)
+        ) / step
+        # track_vel = jnp.where(crossed, track_vel + params.track.length / step, track_vel)
+        # progress_gain = jnp.where(crossed, progress_gain + 1, progress_gain)
 
         violation = jnp.maximum(
             0, jnp.abs(projection_curr.lateral_error) - params.track.road_half_width + 0.1
         )
 
         return (
-            0.9**t * (100_00000 * violation + v_weight * (ref_v - track_vel) ** 2)
-            - p_weight * progress_gain
+            1**t * (10_000_000 * violation + v_weight * (ref_v - track_vel) ** 2)
+            # + 0.1 * jnp.abs(projection_curr.lateral_error)
+            - p_weight * track_vel * jnp.sign(x[3])  # sign flip for fwd/rev
         )
 
     @jax.jit
     def bound(u):
         return jnp.clip(
             u,
-            jnp.array([-1, 0, 0]),
-            jnp.array([1, 1, 1]),
+            jnp.array([-1, -1]),
+            jnp.array([1, 1]),
         )
 
     return dynamics, cost, bound
