@@ -12,8 +12,7 @@ from gymnasium.wrappers import RecordVideo
 import jax.numpy as jnp
 
 
-def run_mpc():
-    scenario = "sample_oval.yaml"
+def run_mpc(scenario):
 
     env = RecordVideo(
         gym.make(
@@ -66,4 +65,6 @@ def run_mpc():
 
 
 if __name__ == "__main__":
-    run_mpc()
+    scenario = "sample_oval.yaml"
+
+    run_mpc(scenario)

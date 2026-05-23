@@ -13,7 +13,7 @@ import jax.numpy as jnp
 
 
 def run_mpc():
-    scenario = "ks_barcelona_layout_gp_dallara_f317_rl_long.yaml" # sample_oval.yaml
+    scenario = "ks_barcelona_layout_gp_dallara_f317_rl_long.yaml" # "ks_barcelona_layout_gp_dallara_f317_rl_long.yaml" # sample_oval.yaml
 
     env = RecordVideo(
         gym.make(
@@ -33,7 +33,7 @@ def run_mpc():
     )
     dynamics, cost, bound = gen_util_funs(params[0])
 
-    mpc = MPPI_Jax(6, 3, dynamics, None, cost, bound, jnp.diag(jnp.array([1, 0.5, 0.5])), inverse_temp=1)
+    mpc = MPPI_Jax(6, 3, dynamics, None, cost, bound, jnp.diag(jnp.array([0.25, 0.5, 0.5])), inverse_temp=1, K=500, gamma=0.1, step = 0.05, T=50)
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
@@ -48,7 +48,15 @@ def run_mpc():
 
             u = mpc.run_mpc(mpc_state)
 
-            print(i, time.perf_counter() - start, u, round(state.progress, 3), round(state.vx, 3), round(state.vy, 3))
+            elapsed = time.perf_counter() - start
+            print(
+                f"Step: {i:<5d} | "
+                f"Time: {elapsed:<7.3f} | "
+                f"u: {u[0]:<7.3f} {u[1]:<7.3f} {u[2]:<7.3f} | "  
+                f"Prog: {state.progress:<6.3f} | "
+                f"vx: {state.vx:<7.3f} | "
+                f"vy: {state.vy:<7.3f}"
+            )
 
             observation, reward, terminated, truncated, info = env.step(u)
 

@@ -17,7 +17,7 @@ Array = jax.Array
 
 
 def gen_util_funs(params: NominalJaxEnvParams):
-    step = 0.02
+    step = 0.05
 
     @jax.jit
     def dynamics(
@@ -78,7 +78,7 @@ def gen_util_funs(params: NominalJaxEnvParams):
     @jax.jit
     def cost(x, u, t):
         v_weight = 0
-        p_weight = 1000
+        p_weight = 1e6
         d_weight = 50
         ref_v = 15  # increase?
 
