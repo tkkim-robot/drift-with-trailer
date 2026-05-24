@@ -10,6 +10,8 @@ dependencies = [
     "jax>=0.10.0",
     "numpy>=2.0.0",
     "opencv-python>=4.13.0.92",
+    "optuna>=4.8.0",
+    "optuna-dashboard>=0.20.0",
     "pygame>=2.6.1",
     # "torch",
 ]

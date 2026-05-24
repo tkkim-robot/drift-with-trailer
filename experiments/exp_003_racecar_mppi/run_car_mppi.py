@@ -13,7 +13,7 @@ import jax.numpy as jnp
 
 
 def run_mpc(scenario, reverse=False):
-
+    speeds, slip_angles_f, slip_angles_r, yaw_rates = [], [], [], []
     env = RecordVideo(
         gym.make(
             "UncertainRacecar-v0",
@@ -51,6 +51,7 @@ def run_mpc(scenario, reverse=False):
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
+
     i = 0
     try:
         while True:
@@ -67,11 +68,26 @@ def run_mpc(scenario, reverse=False):
             print(
                 f"Step: {i:<5d} | "
                 f"Time: {elapsed:<7.3f} | "
-                f"u: {u[0]:<7.3f} {u[1]:<7.3f} | "  
+                f"u: {u[0]:<7.3f} {u[1]:<7.3f} | "
                 f"Prog: {state.progress:<6.3f} | "
                 f"vx: {state.vx:<7.3f} | "
-                f"vy: {state.vy:<7.3f}"
+                f"vy: {state.vy:<7.3f} | "
+                f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f}"
             )
+
+            # Benchmarking
+            speeds.append(jnp.hypot(state.vx, state.vy))
+            yaw_rates.append(state.yaw_rate)
+
+            vx_safe = jnp.maximum(jnp.abs(state.vx), 0.5)
+            steer_angle = state.steer * params[1].vehicle.max_steer_rad
+            alpha_f = steer_angle - jnp.arctan2(
+                state.vy + params[1].vehicle.lf * state.yaw_rate, vx_safe
+            )
+            alpha_r = -jnp.arctan2(state.vy - params[1].vehicle.lr * state.yaw_rate, vx_safe)
+
+            slip_angles_f.append(alpha_f)
+            slip_angles_r.append(alpha_r)
 
             action = jnp.array([u[0], jnp.maximum(u[1], 0), -jnp.minimum(u[1], 0)])
             observation, reward, terminated, truncated, info = env.step(action)
@@ -87,6 +103,11 @@ def run_mpc(scenario, reverse=False):
         pass
 
     env.close()
+
+    cutoff = 100
+    print(
+        f"Reverse: {reverse}, Avg speed: {jnp.mean(jnp.array(speeds[cutoff:]))}, Avg alpha_f: {jnp.mean(jnp.array(slip_angles_f[cutoff:]))}, Avg alpha_r: {jnp.mean(jnp.array(slip_angles_r[cutoff:]))}, Avg yaw_rate: {jnp.mean(jnp.array(yaw_rates[cutoff:]))}"
+    )
 
 
 if __name__ == "__main__":
