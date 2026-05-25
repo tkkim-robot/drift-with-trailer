@@ -42,9 +42,9 @@ def run_mpc(scenario, reverse=False):
         None,
         cost,
         bound,
-        jnp.diag(jnp.array([0.25, 0.75])), # 0.25, 0.75
-        jnp.diag(jnp.array([0.0, 0.0])),
-        inverse_temp=1.75,
+        jnp.diag(jnp.array([0.07295566355713852, 0.5144608534445827])), # 0.25, 0.75
+        jnp.diag(jnp.array([0.808100859804515, 0.252776719632798])),
+        inverse_temp=6.597652872970505,
         K=350,
         gamma=0.1,
         step=0.05,

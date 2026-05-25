@@ -53,12 +53,13 @@ def run_mpc(scenario, trial, reverse=False, max_steps=None, render=True):
         ),
         jnp.diag(
             jnp.array(
-                [trial.suggest_float("omega_steer", 0.0, 1.0), trial.suggest_float("omega_accel", 0, 1)]
+                [0.01, 0.01]
+                # [trial.suggest_float("omega_steer", 0.0, 1.0), trial.suggest_float("omega_accel", 0, 1)]
             )
         ),
-        inverse_temp=trial.suggest_float("inverse_temp", 0.05, 8),
+        inverse_temp=trial.suggest_float("inverse_temp", 0.01, 8),
         K=350,
-        gamma=trial.suggest_float("gamma", 0.01, 0.3),
+        gamma=0.1, # trial.suggest_float("gamma", 0.01, 0.3),
         step=0.05,
         T=45,
     )
@@ -68,7 +69,7 @@ def run_mpc(scenario, trial, reverse=False, max_steps=None, render=True):
     total_cost = 0
 
     try:
-        for i in range(max_steps):
+        for i in range(max_steps + 1):
             start = time.perf_counter()
 
             state: VehicleState = env.unwrapped._state
@@ -97,10 +98,10 @@ def run_mpc(scenario, trial, reverse=False, max_steps=None, render=True):
             observation, reward, terminated, truncated, info = env.step(action)
 
             total_cost += step_cost
-            
-            if i % 1000 == 0:
-                trial.report(total_cost, step=i)
 
+            if i % 500 == 0:
+                trial.report(total_cost, step=i)
+                
                 if trial.should_prune():
                     env.close()
                     raise optuna.TrialPruned()
@@ -137,8 +138,11 @@ if __name__ == "__main__":
         storage="sqlite:///optuna_smppi.db",
         direction="minimize",
         load_if_exists=True,
-        sampler=optuna.samplers.TPESampler(seed=0),
-        pruner=optuna.pruners.MedianPruner(n_warmup_steps=300),
+        pruner=optuna.pruners.HyperbandPruner(
+            min_resource=500,    
+            max_resource=5000,
+            reduction_factor=2,
+        )
     )
     study.optimize(objective, n_trials=600)
 

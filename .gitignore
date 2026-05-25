@@ -35,4 +35,3 @@ experiments/**/runs/
 src/learning/datasets/raw/
 src/learning/datasets/processed/
 gym_videos
-*.db
