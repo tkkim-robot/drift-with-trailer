@@ -85,8 +85,6 @@ if __name__ == "__main__":
         scenario=f"package://scenarios/{scenario}",
     )
 
-    dynamics, cost, bound = gen_util_funs(params[0])
-
     trials = [
         ("MPPI For.; no v bound", "SMPPI For.;no v bound", False, None),
         ("MPPI Rev.; no v bound", "SMPPI Rev.;no v bound", True, None),
@@ -101,7 +99,7 @@ if __name__ == "__main__":
     ]
 
     for config_mppi, config_smppi, reverse, v_t in trials:
-        dynamics, cost, bound = gen_util_funs(params[0], reverse=reverse, v_target=(None if v_t is None else v_t / 3.6))
+        dynamics, cost, bound, bound_der = gen_util_funs(params[0], reverse=reverse, v_target=(None if v_t is None else v_t / 3.6))
 
         mppi = MPPI_Jax(
             6,
@@ -124,6 +122,7 @@ if __name__ == "__main__":
             None,
             cost,
             bound,
+            bound_der,
             jnp.diag(jnp.array([0.5, 1])), # 0.25, 0.75
             jnp.diag(jnp.array([1e-1, 1e-2])),
             inverse_temp=1,

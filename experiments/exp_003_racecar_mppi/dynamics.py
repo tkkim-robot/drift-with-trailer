@@ -103,7 +103,7 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
         else:
             v_term = p_weight * jnp.abs(track_vel - v_target)
 
-        return 0.9**t * (10_000_000 * violation) + v_term
+        return 0.9**t * (1e9 * violation) + v_term
 
     @jax.jit
     def bound(u):
@@ -112,5 +112,13 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
             jnp.array([-1, -1]),
             jnp.array([1, 1]),
         )
+    
+    @jax.jit
+    def bound_der(u):
+        return jnp.clip(
+            u,
+            jnp.array([-1.5, -1]),
+            jnp.array([1.5, 1]),
+        )
 
-    return dynamics, cost, bound
+    return dynamics, cost, bound, bound_der
