@@ -32,7 +32,7 @@ def run_mpc(scenario, reverse=False):
     params = build_nominal_jax_params(
         scenario=f"package://scenarios/{scenario}",
     )
-    dynamics, cost, bound = gen_util_funs(params[0], reverse=reverse)
+    dynamics, cost, bound = gen_util_funs(params[0], reverse=reverse, v_target=None)
 
     mpc = MPPI_Jax(
         6,

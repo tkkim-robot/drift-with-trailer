@@ -18,7 +18,7 @@ def run_mpc(mpc, env, config):
     env.reset()
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
-    for i in range(5000):
+    for i in range(3000):
         start = time.perf_counter()
 
         state: VehicleState = env.unwrapped._state
@@ -51,15 +51,15 @@ def run_mpc(mpc, env, config):
 
         if terminated:
             break
-        frame = env.render()
-        cv2.imshow("sim", frame[..., ::-1])
-        cv2.waitKey(1)
+        # frame = env.render()
+        # cv2.imshow("sim", frame[..., ::-1])
+        # cv2.waitKey(1)
 
 
     cutoff = 100
     print(
         f"Config: {config} \t| "
-        f"Avg speed: {jnp.mean(jnp.array(speeds[cutoff:])):<7.3f} | "
+        f"Avg speed: {jnp.mean(jnp.array(speeds[cutoff:])) * 3.6:<7.3f} | "
         f"Avg alpha_f: {jnp.mean(jnp.array(slip_angles_f[cutoff:])):<7.3f} | "
         f"Avg alpha_r: {jnp.mean(jnp.array(slip_angles_r[cutoff:])):<7.3f} | "
         f"Avg yaw_rate: {jnp.mean(jnp.array(yaw_rates[cutoff:])):<7.3f} | "
@@ -76,9 +76,9 @@ if __name__ == "__main__":
         scenario=f"package://scenarios/{scenario}",
         uncertainty=None,
         renderer="pybullet",
-        render_mode="rgb_array_birds_eye",
-        render_width=300,
-        render_height=200,
+        render_mode="none",
+        # render_width=300,
+        # render_height=200,
     )
 
     params = build_nominal_jax_params(
@@ -87,40 +87,50 @@ if __name__ == "__main__":
 
     dynamics, cost, bound = gen_util_funs(params[0])
 
-    mppi = mpc = MPPI_Jax(
-        6,
-        2,
-        dynamics,
-        None,
-        cost,
-        bound,
-        jnp.diag(jnp.array([0.25, 0.75])),
-        inverse_temp=0.5,
-        K=350,
-        gamma=0.1,
-        step=0.05,
-        T=45,
-    )
-    smppi = SMPPI_Jax(
-        6,
-        2,
-        dynamics,
-        None,
-        cost,
-        bound,
-        jnp.diag(jnp.array([0.5, 1])), # 0.25, 0.75
-        jnp.diag(jnp.array([1e-1, 1e-2])),
-        inverse_temp=1,
-        K=350,
-        gamma=0.1,
-        step=0.05,
-        T=45,
-    )
+    trials = [
+        ("MPPI For.; no v bound", "SMPPI For.;no v bound", False, None),
+        ("MPPI Rev.; no v bound", "SMPPI Rev.;no v bound", True, None),
+        ("MPPI For.;  v_t = 90 ", "SMPPI For.; v_t = 90 ", False, 90),
+        ("MPPI For.;  v_t = 100", "SMPPI For.; v_t = 100", False, 100),
+        ("MPPI For.;  v_t = 120", "SMPPI For.; v_t = 120", False, 120),
+        ("MPPI For.;  v_t = 150", "SMPPI For.; v_t = 150", False, 150),
+        ("MPPI For.;  v_t = 250", "SMPPI For.; v_t = 250", False, 250),
+        ("MPPI Rev.;  v_t = 100", "SMPPI Rev.; v_t = 100", False, -100),
+        ("MPPI Rev.;  v_t = 150", "SMPPI Rev.; v_t = 150", False, -150),
+        ("MPPI Rev.;  v_t = 250", "SMPPI Rev.; v_t = 250", False, -250),
+    ]
 
-    for i in [90, 100, 120, 150, 200, 300]:
-        _, cost, _ = gen_util_funs(params[0], v_target=i/3.6)
-        mppi.cost = cost
-        smppi.cost = cost
+    for config_mppi, config_smppi, reverse, v_t in trials:
+        dynamics, cost, bound = gen_util_funs(params[0], reverse=reverse, v_target=(None if v_t is None else v_t / 3.6))
 
-        run_mpc(mppi, env, f"MPPI Forward; v_t = {i}")
-        run_mpc(smppi, env, f"SMPPI Forward; v_t = {i}")
+        mppi = MPPI_Jax(
+            6,
+            2,
+            dynamics,
+            None,
+            cost,
+            bound,
+            jnp.diag(jnp.array([0.25, 0.75])),
+            inverse_temp=0.5,
+            K=350,
+            gamma=0.1,
+            step=0.05,
+            T=45,
+        )
+        smppi = SMPPI_Jax(
+            6,
+            2,
+            dynamics,
+            None,
+            cost,
+            bound,
+            jnp.diag(jnp.array([0.5, 1])), # 0.25, 0.75
+            jnp.diag(jnp.array([1e-1, 1e-2])),
+            inverse_temp=1,
+            K=350,
+            gamma=0.1,
+            step=0.05,
+            T=45,
+        )
+        run_mpc(mppi, env, config_mppi)
+        run_mpc(smppi, env, config_smppi)
