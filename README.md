@@ -41,3 +41,4 @@ The smoke simulation is intentionally simple. It only checks that the Python env
 - [Task 001: Nonlinear MPC CartPole Swing-Up](docs/tasks/001_nonlinear_mpc_cartpole_swingup.md)
 - [Task 002: MPPI and Smooth MPPI CartPole Swing-Up](docs/tasks/002_mppi_smooth_mppi_cartpole.md)
 - [Task 003: Racecar Track Following With JAX MPPI and Smooth MPPI](docs/tasks/003_racecar_jax_mppi.md)
+- [Task 004: Fiala Racecar, Trailer, and Ice Patches](docs/tasks/004_fiala_trailer_ice_mppi.md)
