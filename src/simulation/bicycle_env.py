@@ -1,20 +1,19 @@
 from __future__ import annotations
+from typing import Any
 
-from collections import deque
-from pathlib import Path
-from typing import Any, Sequence
+from src.simulation.config.bicycle_config import TrackConfig, VehicleConfig, SimulationConfig, BicycleEnvConfig
+from src.utils.track import TrackModel, TrackProjection
 
 import gymnasium as gym
 import numpy as np
 import pandas as pd
 
-# import DynamicBicycleModel, VehicleState
-# from uncertain_racecar_gym.features import build_feature_vector_from_state
+
 from rendering import PyBulletMirrorRenderer
-from uncertain_racecar_gym.scenario import DEFAULT_SCENARIO, Scenario, load_scenario
-from uncertain_racecar_gym.track import TrackModel
+
 
 from dataclasses import dataclass
+
 @dataclass(slots=True)
 class VehicleState:
     x: float
@@ -34,7 +33,7 @@ class VehicleState:
     step_count: int = 0
 
 
-class UncertainRacecarEnv(gym.Env):
+class BicycleEnv(gym.Env):
     metadata = {
         "render_modes": ["human", "rgb_array_follow", "rgb_array_birds_eye"],
         "render_fps": 20,
@@ -42,19 +41,17 @@ class UncertainRacecarEnv(gym.Env):
 
     def __init__(
         self,
-        scenario: str | Path | None = None,
-        apply_mean_correction: bool = False,
-        gaussian_noise_mean: Sequence[float] | None = None,
-        gaussian_noise_std: Sequence[float] | None = None,
+        scenario: str | None = None,
         renderer: str | None = None,
         render_mode: str | None = None,
         render_width: int = 1280,
         render_height: int = 720,
     ) -> None:
         super().__init__()
-        self.scenario: Scenario = load_scenario(scenario or DEFAULT_SCENARIO)
+
+        self.scenario = BicycleEnvConfig
         self.track = TrackModel.from_config(self.scenario.track)
-        self.dynamics = DynamicBicycleModel(self.scenario.vehicle)
+        self.dynamics = DynamicBicycleModel(self.scenario.vehicle) # TODO
 
         self.renderer_kind = renderer
         self.render_mode = render_mode
@@ -62,15 +59,7 @@ class UncertainRacecarEnv(gym.Env):
         self.render_height = int(render_height)
         if self.render_width <= 0 or self.render_height <= 0:
             raise ValueError("render_width and render_height must be positive integers.")
-        self.renderer = None
-        self.reset_rows = None
-        self.apply_mean_correction = bool(apply_mean_correction)
-        self.gaussian_noise_mean = self._normalize_gaussian_vector(gaussian_noise_mean, default=np.zeros(4, dtype=float))
-        self.gaussian_noise_std = self._normalize_gaussian_vector(
-            gaussian_noise_std,
-            default=np.array([0.12, 0.08, 0.05, 0.015], dtype=float),
-            nonnegative=True,
-        )
+        self.renderer = renderer
       
         self.runtime_track_id, self.runtime_car_id = self._resolve_runtime_ids()
 
@@ -81,6 +70,8 @@ class UncertainRacecarEnv(gym.Env):
 
         self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
         self.action_space = gym.spaces.Box(low=np.array([-1.0, 0.0, 0.0], dtype=np.float32), high=np.array([1.0, 1.0, 1.0], dtype=np.float32), dtype=np.float32)
+
+        
 
     def _initial_state(
         self,

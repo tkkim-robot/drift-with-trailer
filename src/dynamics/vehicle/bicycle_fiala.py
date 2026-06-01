@@ -5,7 +5,6 @@ from typing import NamedTuple
 
 Array = jax.Array
 
-
 class JaxTrackProjection(NamedTuple):
     progress: Array
     arc_length: Array
