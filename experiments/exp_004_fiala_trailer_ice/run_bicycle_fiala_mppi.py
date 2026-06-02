@@ -2,8 +2,7 @@ from uncertain_racecar_gym.jax_env import build_nominal_jax_params, NominalJaxRa
 from uncertain_racecar_gym.env import VehicleState
 import gymnasium as gym
 from src.controllers.mpc.mppi_jax import MPPI_Jax
-from experiments.exp_003_racecar_mppi.dynamics import gen_util_funs
-
+from src.dynamics.vehicle.bicycle_fiala import gen_util_funs
 import time
 import cv2
 from gymnasium.wrappers import RecordVideo
@@ -32,7 +31,7 @@ def run_mpc(scenario, reverse=False):
     params = build_nominal_jax_params(
         scenario=f"package://scenarios/{scenario}",
     )
-    dynamics, cost, bound, _ = gen_util_funs(params[0], reverse=reverse, v_target=None)
+    dynamics, cost, bound = gen_util_funs(params[0], reverse=reverse, v_target=None)
 
     mpc = MPPI_Jax(
         6,

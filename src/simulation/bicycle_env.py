@@ -1,36 +1,191 @@
 from __future__ import annotations
 from typing import Any
 
-from src.simulation.config.bicycle_config import TrackConfig, VehicleConfig, SimulationConfig, BicycleEnvConfig
+from src.simulation.config.bicycle_config import (
+    TrackConfig,
+    VehicleConfig,
+    SimulationConfig,
+    BicycleEnvConfig,
+)
 from src.utils.track import TrackModel, TrackProjection
-
 import gymnasium as gym
+import jax.numpy as jnp
 import numpy as np
 import pandas as pd
+
+
 
 
 from rendering import PyBulletMirrorRenderer
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+
+
+def wrap_angle(angle: float) -> float:
+    return (angle + jnp.pi) % (2.0 * jnp.pi) - jnp.pi
+
+
+"""
+TODO:
+- decide if we want to merge throttle/brake in env
+- get mu and gamma from track
+"""
+
 
 @dataclass(slots=True)
 class VehicleState:
     x: float
     y: float
     yaw: float
-    progress: float
-    lateral_error: float
-    heading_error: float
+    # progress: float
+    # lateral_error: float
+    # heading_error: float
     vx: float
     vy: float
     yaw_rate: float
     steer: float
-    throttle: float
-    brake: float
-    wheel_rotation: float
-    lap_count: int = 0
-    step_count: int = 0
+    accel: float
+
+
+def compute_fy(alpha, cc, fz, fx, mu):
+    gamma = 0.7  # no idea if good, put in vehicle params later
+
+    fy_max = jnp.sqrt(jnp.maximum(0.0, (mu * fz) ** 2 - gamma * fx**2))
+
+    alpha_sl = jnp.arctan2(3 * fy_max, cc)
+
+    return jnp.where(
+        jnp.abs(alpha) < alpha_sl,
+        (
+            -cc * jnp.tan(alpha)
+            + (cc**2 / (3 * fy_max)) * jnp.abs(jnp.tan(alpha)) * jnp.tan(alpha)
+            - (cc**3 / (27 * fy_max**2)) * jnp.tan(alpha) ** 3
+        ),
+        -fy_max * jnp.sign(alpha),
+    )
+
+
+class DynamicBicycleModel:
+    def __init__(self, config: BicycleEnvConfig):
+        self.config = config
+
+    def initial_state(
+        self,
+        track: TrackModel,
+        progress: float = 0.0,
+        lateral_error: float = 0.0,
+        heading_error: float = 0.0,
+        speed: float = 6.0,
+    ) -> VehicleState:
+        x, y, yaw = track.spawn_pose(
+            progress, lateral_error=lateral_error, heading_error=heading_error
+        )
+        # projection = track.project(x, y)
+        return VehicleState(
+            x=x,
+            y=y,
+            yaw=yaw,
+            # progress=projection.progress,
+            # lateral_error=projection.lateral_error,
+            # heading_error=wrap_angle(yaw - projection.heading),
+            vx=speed,
+            vy=0.0,
+            yaw_rate=0.0,
+            steer=0.0,
+            accel=0.0,
+        )
+
+    def step(self, state: VehicleState, action: jnp.ndarray, track: TrackModel) -> VehicleState:
+        state_yaw = state.yaw
+        state_xdot = state.vx
+        state_ydot = state.vy
+        state_yaw_dot = state.yaw_rate
+
+        action = jnp.asarray(action, dtype=jnp.float32)
+        steer_cmd = jnp.clip(action[0], -1.0, 1.0)
+        accel_cmd = jnp.clip(action[1], -1.0, 1.0)
+        dt = self.config.simulation.dt
+        vehicle = self.config.vehicle
+
+        # steer = state.steer + (steer_cmd - state.steer) * jnp.minimum(1.0, dt * 8.0)
+        steer = steer_cmd
+        accel = accel_cmd
+        throttle = jnp.maximum(accel, 0.0)
+        brake = -jnp.minimum(accel, 0.0)
+
+        vx_safe = jnp.maximum(jnp.abs(state_xdot), 0.5)
+        steer_angle = steer * vehicle.max_steer_rad
+        alpha_f = steer_angle - jnp.arctan2(state_ydot + vehicle.lf * state_yaw_dot, vx_safe)
+        alpha_r = -jnp.arctan2(state_ydot - vehicle.lr * state_yaw_dot, vx_safe)
+
+        # somehow get mu from track
+        mu = 1
+
+        fyf = compute_fy(
+            alpha_f,
+            vehicle.cornering_stiffness_front,
+            vehicle.mass * 9.8 * vehicle.lr / (vehicle.lf + vehicle.lr),
+            0,
+            mu,
+        )
+
+        fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
+        fyr = compute_fy(
+            alpha_r,
+            vehicle.cornering_stiffness_rear,
+            fzr,
+            mu * fzr * jnp.tanh(accel / (fzr * mu)),
+            mu,
+        )
+
+        longitudinal_acc = (
+            throttle * vehicle.max_accel
+            - brake * vehicle.max_brake
+            - vehicle.drag_coefficient
+            * state_xdot
+            * jnp.abs(state_xdot)
+            / jnp.maximum(vehicle.mass, 1.0)
+        )
+
+        vx_dot = longitudinal_acc + state_ydot * state_yaw_dot
+        vy_dot = (fyf * jnp.cos(steer_angle) + fyr) / vehicle.mass - state_xdot * state_yaw_dot
+        yaw_rate_dot = (
+            vehicle.lf * fyf * jnp.cos(steer_angle) - vehicle.lr * fyr
+        ) / vehicle.inertia_z
+
+        next_vx = state_xdot + vx_dot * dt
+        next_vy = state_ydot + vy_dot * dt
+        next_yaw_rate = state_yaw_dot + yaw_rate_dot * dt
+
+        # Trapezoidal (avg) approximations
+        avg_vx = 0.5 * (state_xdot + next_vx)
+        avg_vy = 0.5 * (state_ydot + next_vy)
+        avg_yaw_rate = 0.5 * (state_yaw_dot + next_yaw_rate)
+
+        # Change of frame
+        xdot = avg_vx * jnp.cos(state_yaw) - avg_vy * jnp.sin(state_yaw)
+        ydot = avg_vx * jnp.sin(state_yaw) + avg_vy * jnp.cos(state_yaw)
+
+        next_x = state.x + xdot * dt
+        next_y = state.y + ydot * dt
+        next_yaw = state.yaw + avg_yaw_rate * dt
+
+        # projection = track.project(next_x, next_y)
+
+        return VehicleState(
+            x=next_x,
+            y=next_y,
+            yaw=next_yaw,
+            vx=next_vx,
+            vy=next_vy,
+            yaw_rate=next_yaw_rate,
+            steer=steer,
+            accel=accel,
+            # progress=projection.progress,
+            # lateral_error=projection.lateral_error,
+            heading_error=wrap_angle(next_yaw - projection.heading),
+        )
 
 
 class BicycleEnv(gym.Env):
@@ -41,7 +196,6 @@ class BicycleEnv(gym.Env):
 
     def __init__(
         self,
-        scenario: str | None = None,
         renderer: str | None = None,
         render_mode: str | None = None,
         render_width: int = 1280,
@@ -49,9 +203,9 @@ class BicycleEnv(gym.Env):
     ) -> None:
         super().__init__()
 
-        self.scenario = BicycleEnvConfig
+        self.scenario = BicycleEnvConfig("aach aach aach", TrackConfig(), VehicleConfig(), SimulationConfig())
         self.track = TrackModel.from_config(self.scenario.track)
-        self.dynamics = DynamicBicycleModel(self.scenario.vehicle) # TODO
+        self.dynamics = DynamicBicycleModel(self.scenario)  # TODO
 
         self.renderer_kind = renderer
         self.render_mode = render_mode
@@ -59,19 +213,22 @@ class BicycleEnv(gym.Env):
         self.render_height = int(render_height)
         if self.render_width <= 0 or self.render_height <= 0:
             raise ValueError("render_width and render_height must be positive integers.")
-        self.renderer = renderer
-      
-        self.runtime_track_id, self.runtime_car_id = self._resolve_runtime_ids()
+        self.renderer = None
 
+        self.runtime_track_id, self.runtime_car_id = self._resolve_runtime_ids()
 
         self._state: VehicleState | None = None
 
-        obs_dim = 8
+        obs_dim = 7
 
-        self.observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32)
-        self.action_space = gym.spaces.Box(low=np.array([-1.0, 0.0, 0.0], dtype=np.float32), high=np.array([1.0, 1.0, 1.0], dtype=np.float32), dtype=np.float32)
-
-        
+        self.observation_space = gym.spaces.Box(
+            low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32
+        )
+        self.action_space = gym.spaces.Box(
+            low=np.array([-1.0, -1], dtype=np.float32),
+            high=np.array([1.0, 1.0], dtype=np.float32),
+            dtype=np.float32,
+        )
 
     def _initial_state(
         self,
@@ -80,10 +237,22 @@ class BicycleEnv(gym.Env):
         initial_heading_error: float | None = None,
         initial_speed: float | None = None,
     ) -> VehicleState:
-        if any(value is not None for value in (initial_progress, initial_lateral_error, initial_heading_error, initial_speed)):
+        if any(
+            value is not None
+            for value in (
+                initial_progress,
+                initial_lateral_error,
+                initial_heading_error,
+                initial_speed,
+            )
+        ):
             progress = float(initial_progress if initial_progress is not None else 0.0) % 1.0
-            lateral_error = float(initial_lateral_error if initial_lateral_error is not None else 0.0)
-            heading_error = float(initial_heading_error if initial_heading_error is not None else 0.0)
+            lateral_error = float(
+                initial_lateral_error if initial_lateral_error is not None else 0.0
+            )
+            heading_error = float(
+                initial_heading_error if initial_heading_error is not None else 0.0
+            )
             speed = float(initial_speed if initial_speed is not None else 8.0)
             return self.dynamics.initial_state(
                 self.track,
@@ -92,27 +261,12 @@ class BicycleEnv(gym.Env):
                 heading_error=heading_error,
                 speed=speed,
             )
-        # if start_mode == "dataset_match" and self.reset_rows is not None and len(self.reset_rows):
-        #     row = self.reset_rows.iloc[int(self.np_random.integers(0, len(self.reset_rows)))]
-        #     return self.dynamics.state_from_canonical_row(row)
-        # if start_mode == "random":
-        #     progress = float(self.np_random.uniform(0.0, 1.0))
-        #     lateral_error = float(self.np_random.uniform(-0.2, 0.2))
-        #     heading_error = float(self.np_random.uniform(-0.08, 0.08))
-        #     speed = float(self.np_random.uniform(7.0, 12.0))
-        #     return self.dynamics.initial_state(self.track, progress=progress, lateral_error=lateral_error, heading_error=heading_error, speed=speed)
-        return self.dynamics.initial_state(self.track, progress=0.0, speed=8.0)
 
+        return self.dynamics.initial_state(self.track, progress=0.0, speed=8.0)
 
     def _observation(self) -> np.ndarray:
         assert self._state is not None
-        lookahead_curvature = self.track.lookahead_curvatures(
-            self._state.progress,
-            count=self.scenario.simulation.lookahead_points,
-            spacing_m=self.scenario.simulation.lookahead_spacing_m,
-        )
-      
-      
+
         obs = np.concatenate(
             [
                 np.array(
@@ -127,7 +281,6 @@ class BicycleEnv(gym.Env):
                     ],
                     dtype=np.float32,
                 ),
-                lookahead_curvature.astype(np.float32),
             ]
         )
         return obs
@@ -139,27 +292,8 @@ class BicycleEnv(gym.Env):
             "y": self._state.y,
             "yaw": self._state.yaw,
             "steering_angle": self._state.steer * self.scenario.vehicle.max_steer_rad,
-            "wheel_rotation": self._state.wheel_rotation,
-            "progress": self._state.progress,
-            "frame_index": self._state.step_count,
             "speed": self._state.vx,
         }
-
-    def _reward(self, previous_progress: float, state: VehicleState) -> float:
-        delta = state.progress - previous_progress
-        if delta < -0.5:
-            delta += 1.0
-        penalty = (
-            self.scenario.reward.lateral_error_coef * abs(state.lateral_error)
-            + self.scenario.reward.heading_error_coef * abs(state.heading_error)
-        )
-        return float(
-            delta * self.scenario.reward.progress_coef
-            + self.scenario.reward.speed_coef * state.vx
-            - penalty
-        )
-
-
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
         super().reset(seed=seed)
@@ -167,7 +301,6 @@ class BicycleEnv(gym.Env):
         start_mode = options.get("start_mode", options.get("mode", "grid"))
 
         self._state = self._initial_state(
-            start_mode,
             initial_progress=options.get("initial_progress"),
             initial_lateral_error=options.get("initial_lateral_error"),
             initial_heading_error=options.get("initial_heading_error"),
@@ -175,7 +308,8 @@ class BicycleEnv(gym.Env):
         )
 
         self._previous_feature_state = None
-        
+        self._step_count = 0
+        self._lap_count = 0
 
         obs = self._observation()
         info = {
@@ -183,10 +317,26 @@ class BicycleEnv(gym.Env):
             "render_state": self._render_state(),
             "reset": {
                 "start_mode": start_mode,
-                "initial_progress": None if options.get("initial_progress") is None else float(options["initial_progress"]),
-                "initial_lateral_error": None if options.get("initial_lateral_error") is None else float(options["initial_lateral_error"]),
-                "initial_heading_error": None if options.get("initial_heading_error") is None else float(options["initial_heading_error"]),
-                "initial_speed": None if options.get("initial_speed") is None else float(options["initial_speed"]),
+                "initial_progress": (
+                    None
+                    if options.get("initial_progress") is None
+                    else float(options["initial_progress"])
+                ),
+                "initial_lateral_error": (
+                    None
+                    if options.get("initial_lateral_error") is None
+                    else float(options["initial_lateral_error"])
+                ),
+                "initial_heading_error": (
+                    None
+                    if options.get("initial_heading_error") is None
+                    else float(options["initial_heading_error"])
+                ),
+                "initial_speed": (
+                    None
+                    if options.get("initial_speed") is None
+                    else float(options["initial_speed"])
+                ),
             },
         }
         return obs, info
@@ -196,24 +346,23 @@ class BicycleEnv(gym.Env):
         action = np.asarray(action, dtype=float)
         previous_progress = self._state.progress
         previous_state_for_features = self._state
-        
 
-        residual = np.zeros(4, dtype=float)
-        calibration_info = None
-       
-        self._state = self.dynamics.step(self._state, action, self.track, self.scenario.simulation.dt, residual=residual)
+        self._state = self.dynamics.step(self._state, action, self.track)
         self._previous_feature_state = previous_state_for_features
+
+        self._step_count += 1
+        if self._state.progress < previous_progress - 0.5:
+            self._lap_count += 1
 
         reward = self._reward(previous_progress, self._state)
         terminated = self.track.out_of_bounds(self._state.lateral_error)
-        truncated = self._state.step_count >= self.scenario.simulation.max_steps
+        truncated = self._step_count >= self.scenario.simulation.max_steps
 
         render_state = self._render_state()
         info = {
             "state": render_state,
             "render_state": render_state,
-            "calibration": calibration_info,
-            "lap_count": self._state.lap_count,
+            "lap_count": self._lap_count,
         }
         return self._observation(), reward, terminated, truncated, info
 

@@ -2,6 +2,9 @@ from dataclasses import dataclass, replace
 import jax.numpy as jnp
 import jax
 from typing import NamedTuple
+from uncertain_racecar_gym.jax_env import (
+    _project_to_track,
+)
 
 Array = jax.Array
 
@@ -98,25 +101,26 @@ class JaxStepOutput(NamedTuple):
 
 
 def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
-    step = params.simulation.dt
     reverse = 1 if reverse else -1
+    step = params.simulation.dt
 
     def compute_fy(alpha, cc, fz, fx, mu):
         gamma = 0.7  # no idea if good, put in vehicle params later
-
-        fy_max = jnp.sqrt((mu * fz) ** 2 + gamma * fx**2)
-
+    
+        fy_max = jnp.sqrt((mu * fz) ** 2 - gamma * fx**2)
+    
         alpha_sl = jnp.arctan2(3 * fy_max, cc)
-
+    
         return jnp.where(
             jnp.abs(alpha) < alpha_sl,
             (
                 -cc * jnp.tan(alpha)
                 + (cc**2 / (3 * fy_max)) * jnp.abs(jnp.tan(alpha)) * jnp.tan(alpha)
-                - (cc**fy_max / (27 * fy_max**2)) * jnp.tan(alpha) ** 3
+                - (cc**3 / (27 * fy_max**2)) * jnp.tan(alpha) ** 3
             ),
             -fy_max * jnp.sign(alpha),
         )
+
 
     @jax.jit
     def dynamics(
@@ -149,12 +153,12 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
         fyf = compute_fy(
             alpha_f,
             vehicle.cornering_stiffness_front,
-            vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.rf),
+            vehicle.mass * 9.8 * vehicle.lr / (vehicle.lf + vehicle.lr),
             0,
             mu,
         )
 
-        fzr = vehicle.mass * 9.8 * vehicle.rf / (vehicle.lf + vehicle.rf)
+        fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
         fyr = compute_fy(
             alpha_r,
             vehicle.cornering_stiffness_rear,
@@ -193,38 +197,38 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
 
         return jnp.asarray([xdot, ydot, avg_yaw_rate, vx_dot, vy_dot, yaw_rate_dot])
 
-    # @jax.jit
-    # def cost(x, u, t):
-    #     p_weight = 1e2
+    @jax.jit
+    def cost(x, u, t):
+        p_weight = 1e2
 
-    #     yaw = x[2]
-    #     gvx = x[3] * jnp.cos(yaw) - x[4] * jnp.sin(yaw)
-    #     gvy = x[3] * jnp.sin(yaw) + x[4] * jnp.cos(yaw)
+        yaw = x[2]
+        gvx = x[3] * jnp.cos(yaw) - x[4] * jnp.sin(yaw)
+        gvy = x[3] * jnp.sin(yaw) + x[4] * jnp.cos(yaw)
 
-    #     projection_curr = _project_to_track(params.track, x[0], x[1])
-    #     projection_next = _project_to_track(params.track, x[0] + step * gvx, x[1] + step * gvy)
-    #     # track_vel = (projection_next.arc_length - projection_curr.arc_length) / step
+        projection_curr = _project_to_track(params.track, x[0], x[1])
+        projection_next = _project_to_track(params.track, x[0] + step * gvx, x[1] + step * gvy)
+        # track_vel = (projection_next.arc_length - projection_curr.arc_length) / step
 
-    #     # progress_gain = projection_next.progress - projection_curr.progress
+        # progress_gain = projection_next.progress - projection_curr.progress
 
-    #     # crossed = progress_gain < -0.5
-    #     raw_diff = projection_next.arc_length - projection_curr.arc_length
-    #     track_vel = (
-    #         raw_diff - params.track.length * jnp.round(raw_diff / params.track.length)
-    #     ) / step
-    #     # track_vel = jnp.where(crossed, track_vel + params.track.length / step, track_vel)
-    #     # progress_gain = jnp.where(crossed, progress_gain + 1, progress_gain)
+        # crossed = progress_gain < -0.5
+        raw_diff = projection_next.arc_length - projection_curr.arc_length
+        track_vel = (
+            raw_diff - params.track.length * jnp.round(raw_diff / params.track.length)
+        ) / step
+        # track_vel = jnp.where(crossed, track_vel + params.track.length / step, track_vel)
+        # progress_gain = jnp.where(crossed, progress_gain + 1, progress_gain)
 
-    #     violation = jnp.maximum(
-    #         0, jnp.abs(projection_curr.lateral_error) - params.track.road_half_width + 0.1
-    #     )
+        violation = jnp.maximum(
+            0, jnp.abs(projection_curr.lateral_error) - params.track.road_half_width + 0.1
+        )
 
-    #     if v_target is None:
-    #         v_term = reverse * p_weight * jnp.abs(track_vel) * jnp.sign(x[3])
-    #     else:
-    #         v_term = p_weight * jnp.abs(track_vel - v_target)
+        if v_target is None:
+            v_term = reverse * p_weight * jnp.abs(track_vel) * jnp.sign(x[3])
+        else:
+            v_term = p_weight * jnp.abs(track_vel - v_target)
 
-    #     return 0.9**t * (1e9 * violation) + v_term
+        return 0.9**t * (1e9 * violation) + v_term
 
     @jax.jit
     def bound(u):
@@ -242,4 +246,6 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
     #         jnp.array([1.5, 1]),
     #     )
 
-    return dynamics, bound
+    return dynamics, cost, bound
+
+

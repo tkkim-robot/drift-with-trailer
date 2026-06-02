@@ -11,6 +11,7 @@ from uncertain_racecar_gym.jax_env import (
 Array = jax.Array
 
 
+
 def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
     step = params.simulation.dt
     reverse = 1 if reverse else -1
