@@ -2,8 +2,9 @@ from dataclasses import dataclass
 
 @dataclass(slots=True)
 class TrackConfig:
-    file = "ADD PATH" # TODO
+    csv = "src/simulation/assets/tracks/ks_barcelona_layout_gp_centerline.csv" # TODO
     width = 16.0
+    closed = True
     # progress bins seems uncecessary, check
 
 
@@ -26,8 +27,8 @@ class VehicleConfig:
 @dataclass(slots=True)
 class SimulationConfig:
     dt = 0.05
-    lookahead_points: 6
-    lookahead_spacing_m: 10.0
+    lookahead_points = 6
+    lookahead_spacing_m = 10.0
 
 @dataclass(slots=True)
 class BicycleEnvConfig:

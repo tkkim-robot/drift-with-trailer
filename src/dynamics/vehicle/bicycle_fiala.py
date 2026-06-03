@@ -8,6 +8,7 @@ from uncertain_racecar_gym.jax_env import (
 
 Array = jax.Array
 
+
 class JaxTrackProjection(NamedTuple):
     progress: Array
     arc_length: Array
@@ -105,12 +106,12 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
     step = params.simulation.dt
 
     def compute_fy(alpha, cc, fz, fx, mu):
-        gamma = 0.7  # no idea if good, put in vehicle params later
-    
+        gamma = 1  # no idea if good, put in vehicle params later
+
         fy_max = jnp.sqrt((mu * fz) ** 2 - gamma * fx**2)
-    
+
         alpha_sl = jnp.arctan2(3 * fy_max, cc)
-    
+
         return jnp.where(
             jnp.abs(alpha) < alpha_sl,
             (
@@ -120,7 +121,6 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
             ),
             -fy_max * jnp.sign(alpha),
         )
-
 
     @jax.jit
     def dynamics(
@@ -148,9 +148,9 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
         alpha_r = -jnp.arctan2(state_ydot - vehicle.lr * state_yaw_dot, vx_safe)
 
         # somehow get mu from track
-        mu = 1
+        mu = 1.5
 
-        fyf = compute_fy(
+        fyf = -compute_fy(
             alpha_f,
             vehicle.cornering_stiffness_front,
             vehicle.mass * 9.8 * vehicle.lr / (vehicle.lf + vehicle.lr),
@@ -159,11 +159,19 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
         )
 
         fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
-        fyr = compute_fy(
+
+    
+        fyr = -compute_fy(
             alpha_r,
             vehicle.cornering_stiffness_rear,
             fzr,
-            mu * fzr * jnp.tanh(action[1] / (fzr * mu)),
+            mu
+            * fzr
+            * jnp.tanh(
+                vehicle.mass
+                * (throttle * vehicle.max_accel - brake * vehicle.max_brake)
+                / (fzr * mu)
+            ),
             mu,
         )
 
@@ -247,5 +255,3 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
     #     )
 
     return dynamics, cost, bound
-
-

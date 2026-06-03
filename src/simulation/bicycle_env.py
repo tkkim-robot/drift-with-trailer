@@ -14,9 +14,7 @@ import numpy as np
 import pandas as pd
 
 
-
-
-from rendering import PyBulletMirrorRenderer
+from src.simulation.rendering import PyBulletMirrorRenderer
 
 
 from dataclasses import dataclass, replace
@@ -25,12 +23,6 @@ from dataclasses import dataclass, replace
 def wrap_angle(angle: float) -> float:
     return (angle + jnp.pi) % (2.0 * jnp.pi) - jnp.pi
 
-
-"""
-TODO:
-- decide if we want to merge throttle/brake in env
-- get mu and gamma from track
-"""
 
 
 @dataclass(slots=True)
@@ -49,7 +41,7 @@ class VehicleState:
 
 
 def compute_fy(alpha, cc, fz, fx, mu):
-    gamma = 0.7  # no idea if good, put in vehicle params later
+    gamma = 1  # no idea if good, put in vehicle params later
 
     fy_max = jnp.sqrt(jnp.maximum(0.0, (mu * fz) ** 2 - gamma * fx**2))
 
@@ -120,9 +112,9 @@ class DynamicBicycleModel:
         alpha_r = -jnp.arctan2(state_ydot - vehicle.lr * state_yaw_dot, vx_safe)
 
         # somehow get mu from track
-        mu = 1
+        mu = 1.5
 
-        fyf = compute_fy(
+        fyf = -compute_fy(
             alpha_f,
             vehicle.cornering_stiffness_front,
             vehicle.mass * 9.8 * vehicle.lr / (vehicle.lf + vehicle.lr),
@@ -131,11 +123,17 @@ class DynamicBicycleModel:
         )
 
         fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
-        fyr = compute_fy(
+        fyr = -compute_fy(
             alpha_r,
             vehicle.cornering_stiffness_rear,
             fzr,
-            mu * fzr * jnp.tanh(accel / (fzr * mu)),
+            mu
+            * fzr
+            * jnp.tanh(
+                vehicle.mass
+                * (throttle * vehicle.max_accel - brake * vehicle.max_brake)
+                / (fzr * mu)
+            ),
             mu,
         )
 
@@ -184,7 +182,7 @@ class DynamicBicycleModel:
             accel=accel,
             # progress=projection.progress,
             # lateral_error=projection.lateral_error,
-            heading_error=wrap_angle(next_yaw - projection.heading),
+            # heading_error=wrap_angle(next_yaw - projection.heading),
         )
 
 
@@ -203,7 +201,9 @@ class BicycleEnv(gym.Env):
     ) -> None:
         super().__init__()
 
-        self.scenario = BicycleEnvConfig("aach aach aach", TrackConfig(), VehicleConfig(), SimulationConfig())
+        self.scenario = BicycleEnvConfig(
+            "aach aach aach", TrackConfig(), VehicleConfig(), SimulationConfig()
+        )
         self.track = TrackModel.from_config(self.scenario.track)
         self.dynamics = DynamicBicycleModel(self.scenario)  # TODO
 
@@ -215,7 +215,7 @@ class BicycleEnv(gym.Env):
             raise ValueError("render_width and render_height must be positive integers.")
         self.renderer = None
 
-        self.runtime_track_id, self.runtime_car_id = self._resolve_runtime_ids()
+        # self.runtime_track_id, self.runtime_car_id = self._resolve_runtime_ids()
 
         self._state: VehicleState | None = None
 
@@ -271,13 +271,13 @@ class BicycleEnv(gym.Env):
             [
                 np.array(
                     [
-                        self._state.progress,
-                        self._state.lateral_error,
-                        self._state.heading_error,
+                        # self._state.progress,
+                        # self._state.lateral_error,
+                        # self._state.heading_error,
                         self._state.vx,
                         self._state.vy,
                         self._state.yaw_rate,
-                        self.track.sample(self._state.progress).curvature,
+                        # self.track.sample(self._state.progress).curvature,
                     ],
                     dtype=np.float32,
                 ),
@@ -344,19 +344,19 @@ class BicycleEnv(gym.Env):
     def step(self, action):
         assert self._state is not None, "Call reset() before step()."
         action = np.asarray(action, dtype=float)
-        previous_progress = self._state.progress
-        previous_state_for_features = self._state
+        # previous_progress = self._state.progress
+        # previous_state_for_features = self._state
 
         self._state = self.dynamics.step(self._state, action, self.track)
-        self._previous_feature_state = previous_state_for_features
+        # self._previous_feature_state = previous_state_for_features
 
         self._step_count += 1
-        if self._state.progress < previous_progress - 0.5:
-            self._lap_count += 1
+        # if self._state.progress < previous_progress - 0.5:
+        #     self._lap_count += 1
 
-        reward = self._reward(previous_progress, self._state)
-        terminated = self.track.out_of_bounds(self._state.lateral_error)
-        truncated = self._step_count >= self.scenario.simulation.max_steps
+        # reward = self._reward(previous_progress, self._state)
+        # terminated = self.track.out_of_bounds(self._state.lateral_error)
+        # truncated = self._step_count >= self.scenario.simulation.max_steps
 
         render_state = self._render_state()
         info = {
@@ -364,7 +364,10 @@ class BicycleEnv(gym.Env):
             "render_state": render_state,
             "lap_count": self._lap_count,
         }
-        return self._observation(), reward, terminated, truncated, info
+        terminated = self.track.out_of_bounds(
+            self.track.project(self._state.x, self._state.y).lateral_error
+        )
+        return self._observation(), 0, terminated, False, info
 
     def render(self):
         if self.render_mode is None or self.renderer_kind != "pybullet":

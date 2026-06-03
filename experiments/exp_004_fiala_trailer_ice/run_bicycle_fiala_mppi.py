@@ -6,32 +6,32 @@ from src.dynamics.vehicle.bicycle_fiala import gen_util_funs
 import time
 import cv2
 from gymnasium.wrappers import RecordVideo
-
+from src.simulation.bicycle_env import BicycleEnv
 
 import jax.numpy as jnp
 
+"""
+TODO:
+- get mu and gamma from track (both env dynamics and mppi dynamics)
+- tune
+- benchmark
+"""
 
 def run_mpc(scenario, reverse=False):
     speeds, slip_angles_f, slip_angles_r, yaw_rates = [], [], [], []
-    env = RecordVideo(
-        gym.make(
-            "UncertainRacecar-v0",
-            scenario=f"package://scenarios/{scenario}",
-            uncertainty=None,
-            renderer="pybullet",
-            render_mode="rgb_array_birds_eye",
-            render_width=300,
-            render_height=200,
-        ),
-        video_folder="gym_videos",
-        episode_trigger=lambda x: True,
+    env = BicycleEnv(
+        renderer="pybullet",
+        render_mode="rgb_array_birds_eye",
+        render_width=300,
+        render_height=200,
     )
+
     env.reset()
 
     params = build_nominal_jax_params(
         scenario=f"package://scenarios/{scenario}",
     )
-    dynamics, cost, bound = gen_util_funs(params[0], reverse=reverse, v_target=None)
+    dynamics, cost, bound = gen_util_funs(params[0], reverse=reverse, v_target=30)
 
     mpc = MPPI_Jax(
         6,
@@ -50,7 +50,6 @@ def run_mpc(scenario, reverse=False):
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
-
     i = 0
     try:
         while True:
@@ -68,7 +67,7 @@ def run_mpc(scenario, reverse=False):
                 f"Step: {i:<5d} | "
                 f"Time: {elapsed:<7.3f} | "
                 f"u: {u[0]:<7.3f} {u[1]:<7.3f} | "
-                f"Prog: {state.progress:<6.3f} | "
+                # f"Prog: {state.progress:<6.3f} | "
                 f"vx: {state.vx:<7.3f} | "
                 f"vy: {state.vy:<7.3f} | "
                 f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f}"

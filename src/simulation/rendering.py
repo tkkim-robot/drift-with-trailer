@@ -247,13 +247,13 @@ class PyBulletMirrorRenderer:
         p.resetBasePositionAndOrientation(vehicle_id, position, orientation, physicsClientId=self.client_id)
 
         steer_angle = render_state["steering_angle"]
-        wheel_rotation = render_state["wheel_rotation"]
+        # wheel_rotation = render_state["wheel_rotation"]
         front_steer_joints = ("front_left_steer", "front_right_steer")
         wheel_joints = ("front_left_wheel", "front_right_wheel", "rear_left_wheel", "rear_right_wheel")
         for name in front_steer_joints:
             p.resetJointState(vehicle_id, joint_names[name], targetValue=steer_angle, physicsClientId=self.client_id)
-        for name in wheel_joints:
-            p.resetJointState(vehicle_id, joint_names[name], targetValue=wheel_rotation, physicsClientId=self.client_id)
+        # for name in wheel_joints:
+        #     p.resetJointState(vehicle_id, joint_names[name], targetValue=wheel_rotation, physicsClientId=self.client_id)
         self._frame_index = int(render_state.get("frame_index", self._frame_index + 1))
 
     def update(self, render_state: dict, comparison_state: dict | None = None) -> None:

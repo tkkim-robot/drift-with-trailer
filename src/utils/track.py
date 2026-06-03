@@ -28,7 +28,8 @@ def wrap_angle(angle: float) -> float:
     return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
 class TrackModel:
-    def __init__(self, centerline: np.ndarray, width: float, closed: bool = True, progress_bins: int = 24):
+    def __init__(self, centerline: np.ndarray, width: float, closed: bool = True):
+        print(centerline.shape)
         if centerline.shape[0] < 4:
             raise ValueError("Track centerline must contain at least four points.")
         if np.allclose(centerline[0], centerline[-1]):
@@ -44,7 +45,6 @@ class TrackModel:
         self.centerline = centerline
         self.width = float(width)
         self.closed = bool(closed)
-        self.progress_bins = int(progress_bins)
 
         extended = np.vstack([self.centerline, self.centerline[0]])
         self._segments = np.diff(extended, axis=0)
@@ -72,7 +72,7 @@ class TrackModel:
             centerline = frame[["x", "y"]].to_numpy(dtype=float)
         else:
             centerline = frame.iloc[:, :2].to_numpy(dtype=float)
-        return cls(centerline=centerline, width=config.width, closed=config.closed, progress_bins=config.progress_bins)
+        return cls(centerline=centerline, width=config.width, closed=config.closed)
 
     def progress_to_arc(self, progress: float) -> float:
         return float(progress % 1.0) * self.length
