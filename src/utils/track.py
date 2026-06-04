@@ -29,7 +29,7 @@ def wrap_angle(angle: float) -> float:
 
 class TrackModel:
     def __init__(self, centerline: np.ndarray, width: float, closed: bool = True):
-        print(centerline.shape)
+
         if centerline.shape[0] < 4:
             raise ValueError("Track centerline must contain at least four points.")
         if np.allclose(centerline[0], centerline[-1]):

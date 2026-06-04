@@ -31,7 +31,8 @@ def run_mpc(scenario, reverse=False):
     params = build_nominal_jax_params(
         scenario=f"package://scenarios/{scenario}",
     )
-    dynamics, cost, bound, _ = gen_util_funs(params[0], reverse=reverse, v_target=20)
+
+    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=60)
 
     mpc = MPPI_Jax(
         6,
@@ -40,12 +41,12 @@ def run_mpc(scenario, reverse=False):
         None,
         cost,
         bound,
-        jnp.diag(jnp.array([0.5, 1.5])),
-        inverse_temp=0.5,
-        K=350,
-        gamma=0.05,
-        step=0.05,
-        T=45,
+        jnp.diag(jnp.array([0.125, 1])),
+        inverse_temp=1,
+        K=320,
+        gamma=0.1,
+        step=0.075,
+        T=55,
     )
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
@@ -87,7 +88,7 @@ def run_mpc(scenario, reverse=False):
             slip_angles_f.append(alpha_f)
             slip_angles_r.append(alpha_r)
 
-            action = jnp.array([u[0], jnp.maximum(u[1], 0), -jnp.minimum(u[1], 0)])
+            action = jnp.array([u[0], u[1]])
             observation, reward, terminated, truncated, info = env.step(action)
 
             if terminated:  # or truncated:

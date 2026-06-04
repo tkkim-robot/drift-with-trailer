@@ -156,6 +156,16 @@ class DynamicBicycleModel:
         next_vy = state_ydot + vy_dot * dt
         next_yaw_rate = state_yaw_dot + yaw_rate_dot * dt
 
+        longitudinal_acc, vx_dot, brake * vehicle.max_brake
+
+        # print(
+        #     f"Long: {longitudinal_acc:>7.3f} "
+        #     f"ax: {vx_dot:>7.3f} "
+        #     f"F_b: {brake * vehicle.max_brake:>7.3f} "
+        #     f"b_sig: {brake:>7.3f} "
+        #     f"accel: {accel:>7.3f}"
+        # )
+
         # Trapezoidal (avg) approximations
         avg_vx = 0.5 * (state_xdot + next_vx)
         avg_vy = 0.5 * (state_ydot + next_vy)
