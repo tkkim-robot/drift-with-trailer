@@ -40,8 +40,7 @@ class VehicleState:
     accel: float
 
 
-def compute_fy(alpha, cc, fz, fx, mu):
-    gamma = 1  # no idea if good, put in vehicle params later
+def compute_fy(alpha, cc, fz, fx, mu, gamma):
 
     fy_max = jnp.sqrt(jnp.maximum(0.0, (mu * fz) ** 2 - gamma * fx**2))
 
@@ -111,8 +110,7 @@ class DynamicBicycleModel:
         alpha_f = steer_angle - jnp.arctan2(state_ydot + vehicle.lf * state_yaw_dot, vx_safe)
         alpha_r = -jnp.arctan2(state_ydot - vehicle.lr * state_yaw_dot, vx_safe)
 
-        # somehow get mu from track
-        mu = 1.5
+        mu = 1.5    # Placeholder, later query xy points
 
         fyf = -compute_fy(
             alpha_f,
@@ -120,6 +118,7 @@ class DynamicBicycleModel:
             vehicle.mass * 9.8 * vehicle.lr / (vehicle.lf + vehicle.lr),
             0,
             mu,
+            vehicle.gamma
         )
 
         fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
@@ -135,6 +134,7 @@ class DynamicBicycleModel:
                 / (fzr * mu)
             ),
             mu,
+            vehicle.gamma
         )
 
         longitudinal_acc = (

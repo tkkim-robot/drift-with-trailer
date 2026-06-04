@@ -23,6 +23,7 @@ class VehicleConfig:
     drag_coefficient = 0.85
     wheel_radius = 0.33
     chassis_size = [3.2, 1.4, 0.32]
+    gamma = 1
 
 @dataclass(slots=True)
 class SimulationConfig:

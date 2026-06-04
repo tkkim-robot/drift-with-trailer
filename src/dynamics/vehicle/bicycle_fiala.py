@@ -106,7 +106,7 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
     step = params.simulation.dt
 
     def compute_fy(alpha, cc, fz, fx, mu):
-        gamma = 1  # no idea if good, put in vehicle params later
+        gamma = 1  # TODO consolidate
 
         fy_max = jnp.sqrt((mu * fz) ** 2 - gamma * fx**2)
 
@@ -121,6 +121,63 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
             ),
             -fy_max * jnp.sign(alpha),
         )
+    
+    def tire_traction_penalty(alpha, cc, fz, fx, mu):
+        gamma = 1 # TODO consolidate
+        fy_max = jnp.sqrt((mu * fz) ** 2 - gamma * fx**2)
+        alpha_sl = jnp.arctan2(3 * fy_max, cc)
+    
+        return jnp.maximum(0, jnp.abs(alpha) - alpha_sl) / alpha_sl
+
+    def combined_traction_penalty(state, action):
+        state_x, state_y, state_yaw, state_xdot, state_ydot, state_yaw_dot = jnp.unstack(state)
+
+        action = jnp.asarray(action, dtype=jnp.float32)
+        steer_cmd = jnp.clip(action[0], -1.0, 1.0)
+
+        throttle_cmd = jnp.maximum(action[1], 0.0)
+        brake_cmd = -jnp.minimum(action[1], 0.0)
+        dt = params.simulation.dt
+        vehicle = params.vehicle
+
+        # steer = state.steer + (steer_cmd - state.steer) * jnp.minimum(1.0, dt * 8.0)
+        steer = steer_cmd
+        throttle = throttle_cmd
+        brake = brake_cmd
+
+        vx_safe = jnp.maximum(jnp.abs(state_xdot), 0.5)
+        steer_angle = steer * vehicle.max_steer_rad
+        alpha_f = steer_angle - jnp.arctan2(state_ydot + vehicle.lf * state_yaw_dot, vx_safe)
+        alpha_r = -jnp.arctan2(state_ydot - vehicle.lr * state_yaw_dot, vx_safe)
+
+        fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
+
+        # somehow get mu from track
+        mu = 1.5
+
+        pen_f = tire_traction_penalty(
+            alpha_f,
+            vehicle.cornering_stiffness_front,
+            vehicle.mass * 9.8 * vehicle.lr / (vehicle.lf + vehicle.lr),
+            0,
+            mu,
+        )
+        pen_r = tire_traction_penalty(
+            alpha_r,
+            vehicle.cornering_stiffness_rear,
+            fzr,
+            mu
+            * fzr
+            * jnp.tanh(
+                vehicle.mass
+                * (throttle * vehicle.max_accel - brake * vehicle.max_brake)
+                / (fzr * mu)
+            ),
+            mu,
+        )
+
+        return (pen_f + pen_r) ** 2
+
 
     @jax.jit
     def dynamics(
@@ -207,7 +264,10 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
 
     @jax.jit
     def cost(x, u, t):
-        p_weight = 1e2
+        p_weight = 1e3
+        p_slow_weight = 1e-3
+        s_weight = 1e-1
+        c_weight = 1e3
 
         yaw = x[2]
         gvx = x[3] * jnp.cos(yaw) - x[4] * jnp.sin(yaw)
@@ -227,16 +287,17 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
         # track_vel = jnp.where(crossed, track_vel + params.track.length / step, track_vel)
         # progress_gain = jnp.where(crossed, progress_gain + 1, progress_gain)
 
+
         violation = jnp.maximum(
-            0, jnp.abs(projection_curr.lateral_error) - params.track.road_half_width + 0.1
+            0, jnp.abs(projection_curr.lateral_error) - params.track.road_half_width * 0.9 + 0.1
         )
 
         if v_target is None:
             v_term = reverse * p_weight * jnp.abs(track_vel) * jnp.sign(x[3])
         else:
-            v_term = p_weight * jnp.abs(track_vel - v_target)
+            v_term = p_weight * jnp.maximum(track_vel - v_target, 0) + p_weight * p_slow_weight * jnp.maximum(0, v_target - track_vel)
 
-        return 0.9**t * (1e9 * violation) + v_term
+        return 1**t * (1e12 * violation + v_term + combined_traction_penalty(x, u) * s_weight + projection_curr.lateral_error ** 2 * c_weight)
 
     @jax.jit
     def bound(u):
@@ -246,12 +307,13 @@ def gen_util_funs(params: NominalJaxEnvParams, reverse=False, v_target=None):
             jnp.array([1, 1]),
         )
 
-    # @jax.jit
-    # def bound_der(u):
-    #     return jnp.clip(
-    #         u,
-    #         jnp.array([-1.5, -1]),
-    #         jnp.array([1.5, 1]),
-    #     )
+    @jax.jit
+    def bound_der(u):
+        return u
+        # return jnp.clip(
+        #     u,
+        #     jnp.array([-1.5, -1]),
+        #     jnp.array([1.5, 1]),
+        # )
 
-    return dynamics, cost, bound
+    return dynamics, cost, bound, bound_der
