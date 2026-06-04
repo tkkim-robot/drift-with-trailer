@@ -110,7 +110,7 @@ class DynamicBicycleModel:
         alpha_f = steer_angle - jnp.arctan2(state_ydot + vehicle.lf * state_yaw_dot, vx_safe)
         alpha_r = -jnp.arctan2(state_ydot - vehicle.lr * state_yaw_dot, vx_safe)
 
-        mu = 1.5    # Placeholder, later query xy points
+        mu = track.find_mu(state.x, state.y)
 
         fyf = -compute_fy(
             alpha_f,

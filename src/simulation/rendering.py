@@ -1,3 +1,7 @@
+"""
+From Uncertain Racecar Gym, with modifications
+"""
+
 from __future__ import annotations
 
 import math
@@ -9,13 +13,13 @@ import numpy as np
 import pybullet as p
 from PIL import Image, ImageDraw
 
-from uncertain_racecar_gym.common import package_asset_path
-from uncertain_racecar_gym.scenario import Scenario
-from uncertain_racecar_gym.track import TrackModel
+from uncertain_racecar_gym.common import package_asset_path # TODO fix
+from src.simulation.config.bicycle_config import BicycleEnvConfig
+from src.utils.track import TrackModel
 
 
 class PyBulletMirrorRenderer:
-    def __init__(self, scenario: Scenario, track: TrackModel, render_mode: str, width: int = 1280, height: int = 720):
+    def __init__(self, scenario: BicycleEnvConfig, track: TrackModel, render_mode: str, width: int = 1280, height: int = 720):
         self.scenario = scenario
         self.track = track
         self.render_mode = render_mode
@@ -214,7 +218,41 @@ class PyBulletMirrorRenderer:
                 baseOrientation=p.getQuaternionFromEuler([0.0, 0.0, yaw]),
                 physicsClientId=self.client_id,
             )
+        
+        for patch in self.track.friction_map:
+            # TODO check this
+            x, y, r, mu = patch
+            num_segments = 24 
+            vertices = [[0.0, 0.0, 0.0]]
+            indices = []
+            
+            for i in range(num_segments):
+                angle = 2.0 * math.pi * (i / num_segments)
+                vertices.append([
+                    float(r * math.cos(angle)), 
+                    float(r * math.sin(angle)), 
+                    0.0
+                ])
+            for i in range(1, num_segments + 1):
+                next_i = 1 if i == num_segments else i + 1
+                indices.extend([0, i, next_i])
 
+            ice_visual_shape = p.createVisualShape(
+                shapeType=p.GEOM_MESH,
+                vertices=vertices,
+                indices=indices,
+                rgbaColor=[0.65, 0.85, 0.95, 0.7],
+                physicsClientId=self.client_id,
+            )
+            p.createMultiBody(
+                baseMass=0.0,
+                baseCollisionShapeIndex=-1,
+                baseVisualShapeIndex=ice_visual_shape,
+                basePosition=[float(x), float(y), road_height * 1.05],
+                baseOrientation=p.getQuaternionFromEuler([0.0, 0.0, 0.0]),
+                physicsClientId=self.client_id,
+            )
+     
         self.vehicle_id, self._joint_names = self._spawn_vehicle(rgba=None)
 
     def _spawn_vehicle(self, rgba: list[float] | None) -> tuple[int, dict[str, int]]:

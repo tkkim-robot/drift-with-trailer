@@ -45,7 +45,7 @@ def run_mpc(scenario, reverse=False):
         inverse_temp=1,
         K=320,
         gamma=0.1,
-        step=0.075,
+        step=0.05,
         T=55,
     )
 
@@ -71,7 +71,8 @@ def run_mpc(scenario, reverse=False):
                 # f"Prog: {state.progress:<6.3f} | "
                 f"vx: {state.vx:<7.3f} | "
                 f"vy: {state.vy:<7.3f} | "
-                f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f}"
+                f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f} | "
+                f"mu: {env.track.find_mu(state.x, state.y)}"
             )
 
             # Benchmarking

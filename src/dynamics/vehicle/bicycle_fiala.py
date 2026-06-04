@@ -130,9 +130,9 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
 
         # Tunable values
 
-        p_weight = 1e6
-        p_slow_weight = 1e-2
-        s_weight = 1e2
+        p_weight = 1e3
+        p_slow_weight = 1e0
+        s_weight = 1e4
         c_weight = 1e-2
 
         ####### Helpers #######

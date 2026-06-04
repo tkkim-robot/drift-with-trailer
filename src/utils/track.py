@@ -1,6 +1,8 @@
 """
 Taken from Uncertain Racecar Environment, Taekyung Kim 
 https://github.com/tkkim-robot/uncertain-racecar-gym
+
+With modifications to add variable friction patches
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import jax.numpy as jnp
 
 from src.simulation.config.bicycle_config import TrackConfig
 
@@ -28,7 +31,7 @@ def wrap_angle(angle: float) -> float:
     return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
 class TrackModel:
-    def __init__(self, centerline: np.ndarray, width: float, closed: bool = True):
+    def __init__(self, centerline: np.ndarray, width: float, closed: bool = True, mu=1.5, friction_map=None):
 
         if centerline.shape[0] < 4:
             raise ValueError("Track centerline must contain at least four points.")
@@ -45,6 +48,9 @@ class TrackModel:
         self.centerline = centerline
         self.width = float(width)
         self.closed = bool(closed)
+
+        self.friction_map = friction_map
+        self.mu = mu
 
         extended = np.vstack([self.centerline, self.centerline[0]])
         self._segments = np.diff(extended, axis=0)
@@ -72,7 +78,13 @@ class TrackModel:
             centerline = frame[["x", "y"]].to_numpy(dtype=float)
         else:
             centerline = frame.iloc[:, :2].to_numpy(dtype=float)
-        return cls(centerline=centerline, width=config.width, closed=config.closed)
+        
+        friction_map = None
+        if config.friction_csv is not None:
+            friction = pd.read_csv(Path(config.friction_csv))
+            friction_map = friction[["x", "y", "r", "mu"]].to_numpy(dtype=float)
+
+        return cls(centerline=centerline, width=config.width, closed=config.closed, mu=config.mu, friction_map=friction_map)
 
     def progress_to_arc(self, progress: float) -> float:
         return float(progress % 1.0) * self.length
@@ -147,3 +159,19 @@ class TrackModel:
 
     def out_of_bounds(self, lateral_error: float) -> bool:
         return abs(lateral_error) > (self.width * 0.5)
+
+    def find_mu(self, x, y):
+        # TODO handle overlapping ice patches? Currently just taking closest valid one
+
+        if self.friction_map is None or self.friction_map.shape[0] == 0:
+            return self.mu
+
+        point = np.asarray([x, y], dtype=float)
+        delta = point - self.friction_map[:, :2]
+        distance_sq = np.einsum("ij,ij->i", delta, delta)
+
+        dist_from_circ = np.sqrt(distance_sq) - self.friction_map[:, 2]
+        i = np.argmin(dist_from_circ)
+
+        mu = np.where(dist_from_circ[i] < 0, self.friction_map[i, 3], self.mu)
+        return mu
