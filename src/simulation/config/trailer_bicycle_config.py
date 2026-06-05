@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+
 @dataclass(slots=True)
 class TrackConfig:
     csv = "src/simulation/assets/tracks/ks_barcelona_layout_gp_centerline.csv"
@@ -30,14 +31,24 @@ class VehicleConfig:
     chassis_size = [3.2, 1.4, 0.32]
     gamma = 1
 
+    # Trailer
+    trailer_mass = 300
+    trailer_inertia_z = 320
+    l2f = 1.2
+    l2r = 1.3
+    cornering_stiffness_trailer = 80000.0
+    hitch_offset = 1.9  # tractor CG to hitch (positive behind)
+
+
 @dataclass(slots=True)
 class SimulationConfig:
     dt = 0.05
     lookahead_points = 6
     lookahead_spacing_m = 10.0
 
+
 @dataclass(slots=True)
-class BicycleEnvConfig:
+class TrailerBicycleEnvConfig:
     name: str
     track: TrackConfig
     vehicle: VehicleConfig

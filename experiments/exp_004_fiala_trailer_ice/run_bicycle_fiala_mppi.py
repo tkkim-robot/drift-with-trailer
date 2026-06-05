@@ -17,6 +17,7 @@ TODO:
 - benchmark
 """
 
+
 def run_mpc(scenario, reverse=False):
     speeds, slip_angles_f, slip_angles_r, yaw_rates = [], [], [], []
     env = BicycleEnv(
@@ -32,7 +33,7 @@ def run_mpc(scenario, reverse=False):
         scenario=f"package://scenarios/{scenario}",
     )
 
-    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=60)
+    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=None)
 
     mpc = MPPI_Jax(
         6,

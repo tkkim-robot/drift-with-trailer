@@ -1,5 +1,5 @@
 """
-Taken from Uncertain Racecar Environment, Taekyung Kim 
+Taken from Uncertain Racecar Environment, Taekyung Kim
 https://github.com/tkkim-robot/uncertain-racecar-gym
 
 With modifications to add variable friction patches
@@ -27,11 +27,15 @@ class TrackProjection:
     lateral_error: float
     curvature: float
 
+
 def wrap_angle(angle: float) -> float:
     return (angle + np.pi) % (2.0 * np.pi) - np.pi
 
+
 class TrackModel:
-    def __init__(self, centerline: np.ndarray, width: float, closed: bool = True, mu=1.5, friction_map=None):
+    def __init__(
+        self, centerline: np.ndarray, width: float, closed: bool = True, mu=1.5, friction_map=None
+    ):
 
         if centerline.shape[0] < 4:
             raise ValueError("Track centerline must contain at least four points.")
@@ -49,7 +53,7 @@ class TrackModel:
         self.width = float(width)
         self.closed = bool(closed)
 
-        self.friction_map = friction_map
+        self.friction_map = jnp.asarray(friction_map)
         self.mu = mu
 
         extended = np.vstack([self.centerline, self.centerline[0]])
@@ -58,7 +62,9 @@ class TrackModel:
         self._segment_length_sq = self._segment_lengths * self._segment_lengths
         self._segment_valid = self._segment_lengths > 1e-9
         self._segment_tangents = self._segments / np.maximum(self._segment_lengths[:, None], 1e-9)
-        self._segment_normals = np.stack([-self._segment_tangents[:, 1], self._segment_tangents[:, 0]], axis=1)
+        self._segment_normals = np.stack(
+            [-self._segment_tangents[:, 1], self._segment_tangents[:, 0]], axis=1
+        )
         self._segment_headings = np.arctan2(self._segments[:, 1], self._segments[:, 0])
         self._cumulative = np.concatenate([[0.0], np.cumsum(self._segment_lengths)])
         self.length = float(self._cumulative[-1])
@@ -78,13 +84,19 @@ class TrackModel:
             centerline = frame[["x", "y"]].to_numpy(dtype=float)
         else:
             centerline = frame.iloc[:, :2].to_numpy(dtype=float)
-        
+
         friction_map = None
         if config.friction_csv is not None:
             friction = pd.read_csv(Path(config.friction_csv))
             friction_map = friction[["x", "y", "r", "mu"]].to_numpy(dtype=float)
 
-        return cls(centerline=centerline, width=config.width, closed=config.closed, mu=config.mu, friction_map=friction_map)
+        return cls(
+            centerline=centerline,
+            width=config.width,
+            closed=config.closed,
+            mu=config.mu,
+            friction_map=friction_map,
+        )
 
     def progress_to_arc(self, progress: float) -> float:
         return float(progress % 1.0) * self.length
@@ -103,7 +115,9 @@ class TrackModel:
         heading = float(np.arctan2(segment[1], segment[0]))
         tangent = segment / max(segment_length, 1e-9)
         normal = np.array([-tangent[1], tangent[0]])
-        curvature = float(np.interp(arc, self._arc_samples, self._curvature_samples, period=self.length))
+        curvature = float(
+            np.interp(arc, self._arc_samples, self._curvature_samples, period=self.length)
+        )
         return TrackProjection(
             progress=self.arc_to_progress(arc),
             arc_length=arc,
@@ -141,10 +155,14 @@ class TrackModel:
             y=float(projected[index, 1]),
             heading=float(self._segment_headings[index]),
             lateral_error=signed_offset,
-            curvature=float(np.interp(arc, self._arc_samples, self._curvature_samples, period=self.length)),
+            curvature=float(
+                np.interp(arc, self._arc_samples, self._curvature_samples, period=self.length)
+            ),
         )
 
-    def spawn_pose(self, progress: float, lateral_error: float = 0.0, heading_error: float = 0.0) -> tuple[float, float, float]:
+    def spawn_pose(
+        self, progress: float, lateral_error: float = 0.0, heading_error: float = 0.0
+    ) -> tuple[float, float, float]:
         projection = self.sample(progress)
         tangent = np.array([np.cos(projection.heading), np.sin(projection.heading)])
         normal = np.array([-tangent[1], tangent[0]])
@@ -155,7 +173,9 @@ class TrackModel:
     def lookahead_curvatures(self, progress: float, count: int, spacing_m: float) -> np.ndarray:
         base_arc = self.progress_to_arc(progress)
         arcs = base_arc + np.arange(count, dtype=float) * spacing_m
-        return np.interp(arcs % self.length, self._arc_samples, self._curvature_samples, period=self.length)
+        return np.interp(
+            arcs % self.length, self._arc_samples, self._curvature_samples, period=self.length
+        )
 
     def out_of_bounds(self, lateral_error: float) -> bool:
         return abs(lateral_error) > (self.width * 0.5)
@@ -166,12 +186,12 @@ class TrackModel:
         if self.friction_map is None or self.friction_map.shape[0] == 0:
             return self.mu
 
-        point = np.asarray([x, y], dtype=float)
+        point = jnp.array([x, y], dtype=float)
         delta = point - self.friction_map[:, :2]
-        distance_sq = np.einsum("ij,ij->i", delta, delta)
+        distance_sq = jnp.einsum("ij,ij->i", delta, delta)
 
-        dist_from_circ = np.sqrt(distance_sq) - self.friction_map[:, 2]
-        i = np.argmin(dist_from_circ)
+        dist_from_circ = jnp.sqrt(distance_sq) - self.friction_map[:, 2]
+        i = jnp.argmin(dist_from_circ)
 
-        mu = np.where(dist_from_circ[i] < 0, self.friction_map[i, 3], self.mu)
+        mu = jnp.where(dist_from_circ[i] < 0, self.friction_map[i, 3], self.mu)
         return mu

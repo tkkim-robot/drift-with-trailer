@@ -8,6 +8,7 @@ from src.utils.track import TrackModel
 
 Array = jax.Array
 
+
 class TrackProjection(NamedTuple):
     progress: Array
     arc_length: Array
@@ -25,9 +26,9 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
     track = TrackModel.from_config(params.track)
 
     def compute_fy(alpha, cc, fz, fx, mu):
-        gamma = 1  # TODO consolidate
+        gamma = params.vehicle.gamma
 
-        fy_max = jnp.sqrt(jnp.maximum((mu * fz) ** 2 - gamma * fx**2, 1e-9))
+        fy_max = jnp.sqrt((mu * fz) ** 2 - gamma * fx**2)
 
         alpha_sl = jnp.arctan2(3 * fy_max, cc)
 
@@ -40,7 +41,6 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
             ),
             -fy_max * jnp.sign(alpha),
         )
-
 
     @jax.jit
     def dynamics(
@@ -57,7 +57,6 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
         dt = params.simulation.dt
         vehicle = params.vehicle
 
-        # steer = state.steer + (steer_cmd - state.steer) * jnp.minimum(1.0, dt * 8.0)
         steer = steer_cmd
         throttle = throttle_cmd
         brake = brake_cmd
@@ -67,8 +66,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
         alpha_f = steer_angle - jnp.arctan2(state_ydot + vehicle.lf * state_yaw_dot, vx_safe)
         alpha_r = -jnp.arctan2(state_ydot - vehicle.lr * state_yaw_dot, vx_safe)
 
-        # somehow get mu from track
-        mu = 1.5
+        mu = track.find_mu(state_x, state_y)
 
         fyf = -compute_fy(
             alpha_f,
@@ -80,29 +78,20 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
 
         fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
 
-    
+        commanded = throttle * vehicle.max_accel - brake * vehicle.max_brake
+        fxr = mu * fzr * jnp.tanh(vehicle.mass * commanded / (fzr * mu))
+
         fyr = -compute_fy(
             alpha_r,
             vehicle.cornering_stiffness_rear,
             fzr,
-            mu
-            * fzr
-            * jnp.tanh(
-                vehicle.mass
-                * (throttle * vehicle.max_accel - brake * vehicle.max_brake)
-                / (fzr * mu)
-            ),
+            fxr,
             mu,
         )
 
         longitudinal_acc = (
-            throttle * vehicle.max_accel
-            - brake * vehicle.max_brake
-            - vehicle.drag_coefficient
-            * state_xdot
-            * jnp.abs(state_xdot)
-            / jnp.maximum(vehicle.mass, 1.0)
-        )
+            fxr - vehicle.drag_coefficient * state_xdot * jnp.abs(state_xdot)
+        ) / jnp.maximum(vehicle.mass, 1.0)
 
         vx_dot = longitudinal_acc + state_ydot * state_yaw_dot
         vy_dot = (fyf * jnp.cos(steer_angle) + fyr) / vehicle.mass - state_xdot * state_yaw_dot
@@ -138,10 +127,10 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
         ####### Helpers #######
 
         def tire_traction_penalty(alpha, cc, fz, fx, mu):
-            gamma = 1 # TODO consolidate
+            gamma = params.vehicle.gamma
             fy_max = jnp.sqrt(jnp.maximum((mu * fz) ** 2 - gamma * fx**2, 1e-9))
             alpha_sl = jnp.arctan2(3 * fy_max, cc)
-        
+
             return jnp.maximum(0, jnp.abs(alpha) - alpha_sl) / jnp.maximum(alpha_sl, 1e-9)
 
         def combined_traction_penalty(state, action):
@@ -167,8 +156,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
 
             fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
 
-            # somehow get mu from track
-            mu = 1.5
+            mu = track.find_mu(state_x, state_y)
 
             pen_f = tire_traction_penalty(
                 alpha_f,
@@ -191,15 +179,15 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
                 mu,
             )
 
-            return (pen_f + pen_r) ** 2
-        
+            return (pen_f + 0) ** 2  # if we include pen_r how will we drift??
+
         def _project_to_track(x, y) -> TrackProjection:
             """
             From Uncertain Racecar Gym, adapted
             """
-            lookahead_thresh = 50 # should be meters, TODO tune
+            lookahead_thresh = 50  # should be meters, TODO tune
             lookahead_num = 5
-            
+
             point = jnp.stack([x, y])
             p0 = jnp.array(track.centerline)
             segments = jnp.array(track._segments)
@@ -225,7 +213,9 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
             lookahead_pts = jnp.linspace(arc, arc + lookahead_thresh, lookahead_num)
 
             # curvature = jnp.interp(arc, track._arc_samples, track._curvature_samples)
-            curvature = jnp.mean(jnp.abs(jnp.interp(lookahead_pts, track._arc_samples, track._curvature_samples))) # TODO split off curvature for efficiency?
+            curvature = jnp.mean(
+                jnp.abs(jnp.interp(lookahead_pts, track._arc_samples, track._curvature_samples))
+            )  # TODO split off curvature for efficiency?
 
             heading = jnp.arctan2(chosen_segment[1], chosen_segment[0])
             return TrackProjection(
@@ -237,7 +227,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
                 lateral_error=signed_offset,
                 curvature=curvature,
             )
-        
+
         ####### End Helpers #######
 
         yaw = x[2]
@@ -250,26 +240,35 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
         projection_next = _project_to_track(x[0] + step * gvx, x[1] + step * gvy)
 
         raw_diff = projection_next.arc_length - projection_curr.arc_length
-        track_vel = (
-            raw_diff - track.length * jnp.round(raw_diff / track.length)
-        ) / step
+        track_vel = (raw_diff - track.length * jnp.round(raw_diff / track.length)) / step
 
         violation = jnp.maximum(
             0, jnp.abs(projection_curr.lateral_error) - (params.track.width * 0.5) * 0.9 + 0.1
         )
 
-        max_safe_v = jnp.sqrt(1.0 * 1.5 * 9.8 / (projection_next.curvature + 1e-5)) + 1e7 # currently disabled
+        max_safe_v = (
+            jnp.sqrt(1.0 * 1.5 * 9.8 / (projection_next.curvature + 1e-5)) + 1e7
+        )  # currently disabled
 
         if v_target is None:
-            v_term = reverse * p_weight * jnp.abs(track_vel) * jnp.sign(x[3])
+            # v_term = reverse * p_weight * jnp.abs(track_vel) * jnp.sign(x[3])
+
+            v_term = -p_weight * (-reverse * track_vel + jnp.maximum(0.0, reverse * x[3]))
         else:
             v_baseline = jnp.minimum(max_safe_v, v_target)
             # If v is above threshold use actual car velocity instead of track velocity to stop cheating
             v_car = jnp.where(nominal_v > max_safe_v, nominal_v, track_vel)
 
-            v_term = p_weight * jnp.maximum(0, v_car - v_baseline) + p_weight * p_slow_weight * jnp.maximum(0, v_baseline - v_car)
+            v_term = p_weight * jnp.maximum(
+                0, v_car - v_baseline
+            ) + p_weight * p_slow_weight * jnp.maximum(0, v_baseline - v_car)
 
-        return 1**t * (1e20 * violation + v_term + combined_traction_penalty(x, u) * s_weight + projection_curr.lateral_error ** 2 * c_weight)
+        return 1**t * (
+            1e9 * violation
+            + v_term
+            + combined_traction_penalty(x, u) * s_weight
+            + projection_curr.lateral_error**2 * c_weight
+        )
 
     @jax.jit
     def bound(u):
