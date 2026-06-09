@@ -267,7 +267,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
             1e9 * violation
             + v_term
             + combined_traction_penalty(x, u) * s_weight
-            + projection_curr.lateral_error**2 * c_weight
+            # + projection_curr.lateral_error**2 * c_weight
         )
 
     @jax.jit

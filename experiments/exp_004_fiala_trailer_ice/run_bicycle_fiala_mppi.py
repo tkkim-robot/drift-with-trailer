@@ -28,7 +28,7 @@ def run_mpc(scenario, reverse=False):
 
     env.reset()
 
-    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=60)
+    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=None)
 
     mpc = MPPI_Jax(
         6,

@@ -8,7 +8,7 @@ class TrackConfig:
 
     # csv = "src/simulation/assets/tracks/sample_oval_centerline.csv"
     friction_csv = "src/simulation/assets/tracks/oval_ice.csv"
-    mu = 5
+    mu = 1
     width = 8.0
     closed = True
     # progress bins seems uncecessary, check

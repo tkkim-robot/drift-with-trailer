@@ -205,6 +205,7 @@ def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None)
                 state_ydot,
                 state_yaw_dot,
                 state_yaw_trailer_dot,
+                mu
             ) = jnp.unstack(state)
 
             action = jnp.asarray(action, dtype=jnp.float32)
@@ -227,8 +228,6 @@ def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None)
 
             fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
 
-            mu = track.find_mu(state_x, state_y)
-
             pen_f = tire_traction_penalty(
                 alpha_f,
                 vehicle.cornering_stiffness_front,
@@ -250,7 +249,7 @@ def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None)
                 mu,
             )
 
-            return (pen_f + 0) ** 2  # if we include pen_r how will we drift??
+            return (pen_f + pen_r) ** 2  # if we include pen_r how will we drift??
 
         def _project_to_track(x, y) -> TrackProjection:
             """
@@ -337,7 +336,7 @@ def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None)
         c = (
             0.99**t * (1e9 * violation)
             + v_term
-            # + combined_traction_penalty(x, u) * s_weight
+            + combined_traction_penalty(x, u) * s_weight
             # + projection_curr.lateral_error**2 * c_weight
         )
 
