@@ -42,7 +42,7 @@ def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None)
 
     @jax.jit
     def dynamics(state, u):
-        x, y, phi_1, phi_2, v_1x, v_1y, phi_1_dot, phi_2_dot = state
+        x, y, phi_1, phi_2, v_1x, v_1y, phi_1_dot, phi_2_dot, mu = state
 
         vehicle = params.vehicle
         steer_cmd = jnp.clip(u[0], -1.0, 1.0)
@@ -56,8 +56,6 @@ def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None)
         delta = steer_cmd * vehicle.max_steer_rad
         alpha_f = delta - jnp.arctan2(v_1y + vehicle.lf * phi_1_dot, vx_safe)
         alpha_r = -jnp.arctan2(v_1y - vehicle.lr * phi_1_dot, vx_safe)
-
-        mu = track.find_mu(x, y)
 
         fzf = vehicle.mass * 9.8 * vehicle.lr / (
             vehicle.lf + vehicle.lr
@@ -175,7 +173,7 @@ def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None)
         ydot = avg_vx * jnp.sin(phi_1) + avg_vy * jnp.cos(phi_1)
 
         return jnp.array(
-            [xdot, ydot, phi_1_dot, phi_2_dot, v_1x_dot, v_1y_dot, phi_1_ddot, phi_2_ddot]
+            [xdot, ydot, phi_1_dot, phi_2_dot, v_1x_dot, v_1y_dot, phi_1_ddot, phi_2_ddot, 0]
         )
 
     @jax.jit

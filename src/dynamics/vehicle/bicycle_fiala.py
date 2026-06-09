@@ -8,6 +8,10 @@ from src.utils.track import TrackModel
 
 Array = jax.Array
 
+# from jax import config
+
+# config.update("jax_debug_nans", True)
+
 
 class TrackProjection(NamedTuple):
     progress: Array
@@ -28,7 +32,8 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
     def compute_fy(alpha, cc, fz, fx, mu):
         gamma = params.vehicle.gamma
 
-        fy_max = jnp.sqrt((mu * fz) ** 2 - gamma * fx**2)
+        fy_max = jnp.sqrt(jnp.maximum((mu * fz) ** 2 - gamma * fx**2, 1e-9))
+
 
         alpha_sl = jnp.arctan2(3 * fy_max, cc)
 
@@ -47,7 +52,8 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
         state: Array,
         action: Array,
     ) -> Array:
-        state_x, state_y, state_yaw, state_xdot, state_ydot, state_yaw_dot = jnp.unstack(state)
+        state_x, state_y, state_yaw, state_xdot, state_ydot, state_yaw_dot, mu = jnp.unstack(state)
+        # jax.debug.print("{mu}", mu=mu)
 
         action = jnp.asarray(action, dtype=jnp.float32)
         steer_cmd = jnp.clip(action[0], -1.0, 1.0)
@@ -65,8 +71,6 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
         steer_angle = steer * vehicle.max_steer_rad
         alpha_f = steer_angle - jnp.arctan2(state_ydot + vehicle.lf * state_yaw_dot, vx_safe)
         alpha_r = -jnp.arctan2(state_ydot - vehicle.lr * state_yaw_dot, vx_safe)
-
-        mu = track.find_mu(state_x, state_y)
 
         fyf = -compute_fy(
             alpha_f,
@@ -112,7 +116,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
         xdot = avg_vx * jnp.cos(state_yaw) - avg_vy * jnp.sin(state_yaw)
         ydot = avg_vx * jnp.sin(state_yaw) + avg_vy * jnp.cos(state_yaw)
 
-        return jnp.asarray([xdot, ydot, avg_yaw_rate, vx_dot, vy_dot, yaw_rate_dot])
+        return jnp.asarray([xdot, ydot, avg_yaw_rate, vx_dot, vy_dot, yaw_rate_dot, 0])
 
     @jax.jit
     def cost(x, u, t):
@@ -134,8 +138,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
             return jnp.maximum(0, jnp.abs(alpha) - alpha_sl) / jnp.maximum(alpha_sl, 1e-9)
 
         def combined_traction_penalty(state, action):
-            state_x, state_y, state_yaw, state_xdot, state_ydot, state_yaw_dot = jnp.unstack(state)
-
+            state_x, state_y, state_yaw, state_xdot, state_ydot, state_yaw_dot, mu = jnp.unstack(state)
             action = jnp.asarray(action, dtype=jnp.float32)
             steer_cmd = jnp.clip(action[0], -1.0, 1.0)
 
@@ -155,8 +158,6 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
             alpha_r = -jnp.arctan2(state_ydot - vehicle.lr * state_yaw_dot, vx_safe)
 
             fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
-
-            mu = track.find_mu(state_x, state_y)
 
             pen_f = tire_traction_penalty(
                 alpha_f,
@@ -179,7 +180,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
                 mu,
             )
 
-            return (pen_f + 0) ** 2  # if we include pen_r how will we drift??
+            return (pen_f + pen_r) ** 2 
 
         def _project_to_track(x, y) -> TrackProjection:
             """

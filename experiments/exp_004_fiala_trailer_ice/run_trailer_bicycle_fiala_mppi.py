@@ -64,7 +64,9 @@ def run_mpc(scenario, reverse=False):
 
             state: VehicleState = env.unwrapped._state
 
+            # David why is this JNP?
             mpc_state = jnp.array(astuple(state)[:-2])
+            mpc_state = jnp.append(mpc_state, env.track.find_mu(state.x, state.y))
 
             u = mpc.run_mpc(mpc_state)
             u.block_until_ready()

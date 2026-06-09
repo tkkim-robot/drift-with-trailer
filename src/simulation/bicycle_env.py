@@ -122,7 +122,7 @@ class DynamicBicycleModel:
 
         fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
         commanded = throttle * vehicle.max_accel - brake * vehicle.max_brake
-        fxr = mu * fzr * jnp.tanh(vehicle.mass * commanded / (fzr * mu))
+        fxr = mu * fzr * jnp.tanh(vehicle.mass * commanded / (fzr * mu) )
 
         fyr = -compute_fy(alpha_r, vehicle.cornering_stiffness_rear, fzr, fxr, mu, vehicle.gamma)
 

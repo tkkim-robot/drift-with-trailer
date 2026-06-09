@@ -1,12 +1,11 @@
-from uncertain_racecar_gym.jax_env import build_nominal_jax_params, NominalJaxRacecarEnv
-from uncertain_racecar_gym.env import VehicleState
 import gymnasium as gym
 from src.controllers.mpc.mppi_jax import MPPI_Jax
 from src.dynamics.vehicle.bicycle_fiala import gen_util_funs
 import time
 import cv2
 from gymnasium.wrappers import RecordVideo
-from src.simulation.bicycle_env import BicycleEnv
+from src.simulation.bicycle_env import BicycleEnv, VehicleState
+from src.simulation.config.bicycle_config import BicycleEnvConfig
 
 import jax.numpy as jnp
 
@@ -29,11 +28,7 @@ def run_mpc(scenario, reverse=False):
 
     env.reset()
 
-    params = build_nominal_jax_params(
-        scenario=f"package://scenarios/{scenario}",
-    )
-
-    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=None)
+    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=60)
 
     mpc = MPPI_Jax(
         6,
@@ -59,10 +54,14 @@ def run_mpc(scenario, reverse=False):
 
             state: VehicleState = env.unwrapped._state
 
-            mpc_state = jnp.array([state.x, state.y, state.yaw, state.vx, state.vy, state.yaw_rate])
+            mpc_state = jnp.array([state.x, state.y, state.yaw, state.vx, state.vy, state.yaw_rate, env.track.find_mu(state.x, state.y)])
 
             u = mpc.run_mpc(mpc_state)
             u.block_until_ready()
+
+            fzr = env.scenario.vehicle.mass * 9.8 * env.scenario.vehicle.lf / (env.scenario.vehicle.lf + env.scenario.vehicle.lr)
+            commanded = jnp.maximum( u[1], 0) * env.scenario.vehicle.max_accel - jnp.maximum( -u[1], 0) * env.scenario.vehicle.max_brake
+            fxr = env.track.find_mu(state.x, state.y) * fzr * jnp.tanh(env.scenario.vehicle.mass * commanded / (fzr * env.track.find_mu(state.x, state.y)))
 
             elapsed = time.perf_counter() - start
             print(
@@ -73,7 +72,8 @@ def run_mpc(scenario, reverse=False):
                 f"vx: {state.vx:<7.3f} | "
                 f"vy: {state.vy:<7.3f} | "
                 f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f} | "
-                f"mu: {env.track.find_mu(state.x, state.y)}"
+                f"mu: {env.track.find_mu(state.x, state.y):<7.3f} | "
+                f"thing: fzr {fzr} fxr {fxr} "
             )
 
             # Benchmarking
@@ -81,11 +81,11 @@ def run_mpc(scenario, reverse=False):
             yaw_rates.append(state.yaw_rate)
 
             vx_safe = jnp.maximum(jnp.abs(state.vx), 0.5)
-            steer_angle = state.steer * params[1].vehicle.max_steer_rad
+            steer_angle = state.steer * env.scenario.vehicle.max_steer_rad
             alpha_f = steer_angle - jnp.arctan2(
-                state.vy + params[1].vehicle.lf * state.yaw_rate, vx_safe
+                state.vy + env.scenario.vehicle.lf * state.yaw_rate, vx_safe
             )
-            alpha_r = -jnp.arctan2(state.vy - params[1].vehicle.lr * state.yaw_rate, vx_safe)
+            alpha_r = -jnp.arctan2(state.vy - env.scenario.vehicle.lr * state.yaw_rate, vx_safe)
 
             slip_angles_f.append(alpha_f)
             slip_angles_r.append(alpha_r)
