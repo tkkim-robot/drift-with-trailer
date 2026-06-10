@@ -125,7 +125,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
 
         p_weight = 1e3
         p_slow_weight = 1e0
-        s_weight = 1e4
+        s_weight = 1e3
         c_weight = 1e-2
 
         ####### Helpers #######
@@ -135,7 +135,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
             fy_max = jnp.sqrt(jnp.maximum((mu * fz) ** 2 - gamma * fx**2, 1e-9))
             alpha_sl = jnp.arctan2(3 * fy_max, cc)
 
-            return jnp.maximum(0, jnp.abs(alpha) - alpha_sl) / jnp.maximum(alpha_sl, 1e-9)
+            return jnp.maximum(0, jnp.abs(alpha) - alpha_sl)
 
         def combined_traction_penalty(state, action):
             state_x, state_y, state_yaw, state_xdot, state_ydot, state_yaw_dot, mu = jnp.unstack(state)
@@ -159,6 +159,9 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
 
             fzr = vehicle.mass * 9.8 * vehicle.lf / (vehicle.lf + vehicle.lr)
 
+            commanded = throttle * vehicle.max_accel - brake * vehicle.max_brake
+            fxr = mu * fzr * jnp.tanh(vehicle.mass * commanded / (fzr * mu))
+
             pen_f = tire_traction_penalty(
                 alpha_f,
                 vehicle.cornering_stiffness_front,
@@ -170,17 +173,11 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
                 alpha_r,
                 vehicle.cornering_stiffness_rear,
                 fzr,
-                mu
-                * fzr
-                * jnp.tanh(
-                    vehicle.mass
-                    * (throttle * vehicle.max_accel - brake * vehicle.max_brake)
-                    / (fzr * mu)
-                ),
+                fxr,
                 mu,
             )
 
-            return (pen_f + pen_r) ** 2 
+            return pen_f ** 2 + pen_r ** 2
 
         def _project_to_track(x, y) -> TrackProjection:
             """
@@ -247,27 +244,29 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
             0, jnp.abs(projection_curr.lateral_error) - (params.track.width * 0.5) * 0.9 + 0.1
         )
 
-        max_safe_v = (
-            jnp.sqrt(1.0 * 1.5 * 9.8 / (projection_next.curvature + 1e-5)) + 1e7
-        )  # currently disabled
+        # safety_thresh = 1.0
+        # max_safe_v = (
+        #     jnp.sqrt(1.0 * safety_thresh * 9.8 / (projection_next.curvature + 1e-5))
+        # )
 
         if v_target is None:
             v_term = reverse * p_weight * jnp.abs(track_vel) * jnp.sign(x[3])
-
         else:
-            v_baseline = jnp.minimum(max_safe_v, v_target)
-            # If v is above threshold use actual car velocity instead of track velocity to stop cheating
-            v_car = jnp.where(nominal_v > max_safe_v, nominal_v, track_vel)
+            v_term = p_weight * jnp.abs(v_target + reverse * jnp.abs(track_vel) * jnp.sign(x[3]))
 
-            v_term = p_weight * jnp.maximum(
-                0, v_car - v_baseline
-            ) + p_weight * p_slow_weight * jnp.maximum(0, v_baseline - v_car)
+            # v_baseline = jnp.minimum(max_safe_v, v_target)
+            # # If v is above threshold use actual car velocity instead of track velocity to stop cheating
+            # v_car = jnp.where(nominal_v > max_safe_v, nominal_v, track_vel)
+
+            # v_term = p_weight * jnp.maximum(
+            #     0, v_car - v_baseline
+            # ) + p_weight * p_slow_weight * jnp.maximum(0, v_baseline - v_car)
 
         return 1**t * (
-            1e9 * violation
+            1e12 * violation
             + v_term
             + combined_traction_penalty(x, u) * s_weight
-            # + projection_curr.lateral_error**2 * c_weight
+            + projection_curr.lateral_error**2 * c_weight
         )
 
     @jax.jit

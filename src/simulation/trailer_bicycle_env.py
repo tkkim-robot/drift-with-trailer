@@ -84,7 +84,9 @@ class DynamicTrailerBicycleModel:
             accel=0.0,
         )
 
-    def step(self, state: VehicleState, action: jnp.ndarray, track: TrackModel) -> VehicleState:
+    def step(
+        self, state: VehicleState, action: jnp.ndarray, track: TrackModel
+    ) -> VehicleState:
         x, y, phi_1, phi_2, v_1x, v_1y, phi_1_dot, phi_2_dot, _, _ = astuple(state)
 
         """
@@ -124,7 +126,11 @@ class DynamicTrailerBicycleModel:
 
         mu = track.find_mu(state.x, state.y)
 
-        fzf = vehicle.mass * 9.8 * vehicle.lr / (vehicle.lf + vehicle.lr) + vehicle.trailer_mass * 9.8 * vehicle.l2r * (vehicle.lr - vehicle.hitch_offset) / (
+        fzf = vehicle.mass * 9.8 * vehicle.lr / (
+            vehicle.lf + vehicle.lr
+        ) + vehicle.trailer_mass * 9.8 * vehicle.l2r * (
+            vehicle.lr - vehicle.hitch_offset
+        ) / (
             (vehicle.lf + vehicle.lr) * (vehicle.l2f + vehicle.l2r)
         )
 
@@ -139,13 +145,17 @@ class DynamicTrailerBicycleModel:
 
         fzr = vehicle.mass * 9.8 * vehicle.lf / (
             vehicle.lf + vehicle.lr
-        ) + vehicle.trailer_mass * 9.8 * vehicle.l2r * (vehicle.lf + vehicle.hitch_offset) / (
+        ) + vehicle.trailer_mass * 9.8 * vehicle.l2r * (
+            vehicle.lf + vehicle.hitch_offset
+        ) / (
             (vehicle.lf + vehicle.lr) * (vehicle.l2f + vehicle.l2r)
         )
         commanded = throttle * vehicle.max_accel - brake * vehicle.max_brake
         fxr = mu * fzr * jnp.tanh(vehicle.mass * commanded / (fzr * mu))
 
-        F_1yr = -compute_fy(alpha_r, vehicle.cornering_stiffness_rear, fzr, fxr, mu, vehicle.gamma)
+        F_1yr = -compute_fy(
+            alpha_r, vehicle.cornering_stiffness_rear, fzr, fxr, mu, vehicle.gamma
+        )
 
         alpha = phi_1 - phi_2
         sa = jnp.sin(alpha)
@@ -153,15 +163,24 @@ class DynamicTrailerBicycleModel:
 
         v_2x = v_1x * ca - (v_1y - phi_1_dot * vehicle.hitch_offset) * sa
         v_2y = (
-            v_1x * sa + (v_1y - phi_1_dot * vehicle.hitch_offset) * ca - vehicle.l2f * phi_2_dot
+            v_1x * sa
+            + (v_1y - phi_1_dot * vehicle.hitch_offset) * ca
+            - vehicle.l2f * phi_2_dot
         )
 
         v2x_safe = jnp.maximum(jnp.abs(v_2x), 0.5)
         alpha_t = -jnp.arctan2(v_2y - vehicle.l2r * phi_2_dot, v2x_safe)
 
-        fzr_trailer = vehicle.trailer_mass * 9.8 * vehicle.l2f / (vehicle.l2f + vehicle.l2r)
+        fzr_trailer = (
+            vehicle.trailer_mass * 9.8 * vehicle.l2f / (vehicle.l2f + vehicle.l2r)
+        )
         F_2yr = -compute_fy(
-            alpha_t, vehicle.cornering_stiffness_trailer, fzr_trailer, 0, mu, vehicle.gamma
+            alpha_t,
+            vehicle.cornering_stiffness_trailer,
+            fzr_trailer,
+            0,
+            mu,
+            vehicle.gamma,
         )
 
         total_mass = vehicle.mass + vehicle.trailer_mass
@@ -210,7 +229,10 @@ class DynamicTrailerBicycleModel:
                 -F_1yr * vehicle.lr
                 + F_1yf * cd * vehicle.lf
                 - vehicle.hitch_offset * F_2yr * ca
-                + vehicle.trailer_mass * vehicle.hitch_offset * phi_1_dot * (v_2x * ca + v_2y * sa)
+                + vehicle.trailer_mass
+                * vehicle.hitch_offset
+                * phi_1_dot
+                * (v_2x * ca + v_2y * sa)
                 + vehicle.trailer_mass
                 * vehicle.hitch_offset
                 * vehicle.l2f
@@ -284,7 +306,9 @@ class TrailerBicycleEnv(gym.Env):
         self.render_width = int(render_width)
         self.render_height = int(render_height)
         if self.render_width <= 0 or self.render_height <= 0:
-            raise ValueError("render_width and render_height must be positive integers.")
+            raise ValueError(
+                "render_width and render_height must be positive integers."
+            )
         self.renderer = None
 
         # self.runtime_track_id, self.runtime_car_id = self._resolve_runtime_ids()
@@ -318,7 +342,9 @@ class TrailerBicycleEnv(gym.Env):
                 initial_speed,
             )
         ):
-            progress = float(initial_progress if initial_progress is not None else 0.0) % 1.0
+            progress = (
+                float(initial_progress if initial_progress is not None else 0.0) % 1.0
+            )
             lateral_error = float(
                 initial_lateral_error if initial_lateral_error is not None else 0.0
             )
@@ -435,7 +461,11 @@ class TrailerBicycleEnv(gym.Env):
             "render_state": render_state,
             "lap_count": self._lap_count,
         }
-        terminated = self.track.out_of_bounds(projection.lateral_error)
+        terminated = (
+            self.track.out_of_bounds(projection.lateral_error)
+            or np.abs(self._state.yaw_trailer - self._state.yaw_truck)
+            >= self.scenario.vehicle.max_hitch
+        )
         return self._observation(), 0, terminated, False, info
 
     def render(self):

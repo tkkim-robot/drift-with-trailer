@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+import numpy as np
 
 @dataclass(slots=True)
 class TrackConfig:
@@ -38,6 +38,7 @@ class VehicleConfig:
     l2r = 1.3
     cornering_stiffness_trailer = 80000.0
     hitch_offset = 1.9  # tractor CG to hitch (positive behind)
+    max_hitch = np.deg2rad(120)
 
 
 @dataclass(slots=True)

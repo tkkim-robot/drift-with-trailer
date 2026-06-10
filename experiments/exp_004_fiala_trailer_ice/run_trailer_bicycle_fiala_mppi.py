@@ -14,15 +14,6 @@ from jax import config
 config.update("jax_debug_nans", True)
 
 
-"""
-TODO:
-- get mu and gamma from track (both env dynamics and mppi dynamics)
-- tune
-- benchmark
-"""
-
-
-
 def run_mpc(scenario, reverse=False):
     speeds, slip_angles_f, slip_angles_r, yaw_rates = [], [], [], []
     env = TrailerBicycleEnv(
@@ -38,7 +29,7 @@ def run_mpc(scenario, reverse=False):
         scenario=f"package://scenarios/{scenario}",
     )
 
-    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=None)
+    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=-20)
 
     mpc = MPPI_Jax(
         8,
@@ -48,7 +39,7 @@ def run_mpc(scenario, reverse=False):
         cost,
         bound,
         jnp.diag(jnp.array([0.125, 1])),
-        inverse_temp=10,
+        inverse_temp=1e-3,
         K=320,
         gamma=0.1,
         step=0.05,
