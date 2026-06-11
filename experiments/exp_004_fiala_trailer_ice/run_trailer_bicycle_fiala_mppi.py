@@ -23,13 +23,16 @@ def run_mpc(scenario, reverse=False):
         render_height=200,
     )
 
+    env = RecordVideo(env, video_folder="gym_videos", episode_trigger=lambda x: True)
+
+
     env.reset()
 
     params = build_nominal_jax_params(
         scenario=f"package://scenarios/{scenario}",
     )
 
-    dynamics, cost, bound, _ = gen_util_funs(env.scenario, reverse=reverse, v_target=-20)
+    dynamics, cost, bound, _ = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=20)
 
     mpc = MPPI_Jax(
         8,
@@ -55,9 +58,9 @@ def run_mpc(scenario, reverse=False):
 
             state: VehicleState = env.unwrapped._state
 
-            # David why is this JNP?
+            # David why is this JNP? why not
             mpc_state = jnp.array(astuple(state)[:-2])
-            mpc_state = jnp.append(mpc_state, env.track.find_mu(state.x, state.y))
+            mpc_state = jnp.append(mpc_state, env.unwrapped.track.find_mu(state.x, state.y))
 
             u = mpc.run_mpc(mpc_state)
             u.block_until_ready()
@@ -71,7 +74,7 @@ def run_mpc(scenario, reverse=False):
                 f"vx: {state.vx:<7.3f} | "
                 f"vy: {state.vy:<7.3f} | "
                 f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f} | "
-                f"mu: {env.track.find_mu(state.x, state.y)}"
+                f"mu: {env.unwrapped.track.find_mu(state.x, state.y)}"
             )
 
             # Benchmarking
