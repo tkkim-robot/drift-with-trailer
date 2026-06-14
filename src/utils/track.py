@@ -160,7 +160,7 @@ class TrackModel:
 
         point = np.asarray([x, y], dtype=float)
         delta_from_start = point - centerline_window
-        print(guess)
+        # print(guess)
         t = np.divide(
             np.einsum("ij,ij->i", delta_from_start, segments_window),
             segments_sq_window,

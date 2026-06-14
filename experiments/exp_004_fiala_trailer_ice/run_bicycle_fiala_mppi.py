@@ -30,7 +30,9 @@ def run_mpc(scenario, reverse=False):
 
     env.reset()
 
-    dynamics, cost, bound, _ = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=35)
+    dynamics, cost, bound, _ = gen_util_funs(
+        env.unwrapped.scenario, reverse=reverse, v_target=None
+    )
 
     mpc = MPPI_Jax(
         6,
@@ -39,8 +41,8 @@ def run_mpc(scenario, reverse=False):
         None,
         cost,
         bound,
-        jnp.diag(jnp.array([0.25, 1])),
-        inverse_temp=1e-1,
+        jnp.diag(jnp.array([0.0625, 1])),
+        inverse_temp=1e-2,
         K=1000,
         gamma=0.1,
         step=0.05,
@@ -56,14 +58,44 @@ def run_mpc(scenario, reverse=False):
 
             state: VehicleState = env.unwrapped._state
 
-            mpc_state = jnp.array([state.x, state.y, state.yaw, state.vx, state.vy, state.yaw_rate, env.unwrapped.track.find_mu(state.x, state.y), env.unwrapped._last_index])
+            mpc_state = jnp.array(
+                [
+                    state.x,
+                    state.y,
+                    state.yaw,
+                    state.vx,
+                    state.vy,
+                    state.yaw_rate,
+                    env.unwrapped.track.find_mu(state.x, state.y),
+                    env.unwrapped.track._arc_samples[env.unwrapped._last_index],
+                ]
+            )
 
             u = mpc.run_mpc(mpc_state)
             u.block_until_ready()
 
-            fzr = env.unwrapped.scenario.vehicle.mass * 9.8 * env.unwrapped.scenario.vehicle.lf / (env.unwrapped.scenario.vehicle.lf + env.unwrapped.scenario.vehicle.lr)
-            commanded = jnp.maximum( u[1], 0) * env.unwrapped.scenario.vehicle.max_accel - jnp.maximum( -u[1], 0) * env.unwrapped.scenario.vehicle.max_brake
-            fxr = env.unwrapped.track.find_mu(state.x, state.y) * fzr * jnp.tanh(env.unwrapped.scenario.vehicle.mass * commanded / (fzr * env.unwrapped.track.find_mu(state.x, state.y)))
+            fzr = (
+                env.unwrapped.scenario.vehicle.mass
+                * 9.8
+                * env.unwrapped.scenario.vehicle.lf
+                / (
+                    env.unwrapped.scenario.vehicle.lf
+                    + env.unwrapped.scenario.vehicle.lr
+                )
+            )
+            commanded = (
+                jnp.maximum(u[1], 0) * env.unwrapped.scenario.vehicle.max_accel
+                - jnp.maximum(-u[1], 0) * env.unwrapped.scenario.vehicle.max_brake
+            )
+            fxr = (
+                env.unwrapped.track.find_mu(state.x, state.y)
+                * fzr
+                * jnp.tanh(
+                    env.unwrapped.scenario.vehicle.mass
+                    * commanded
+                    / (fzr * env.unwrapped.track.find_mu(state.x, state.y))
+                )
+            )
 
             elapsed = time.perf_counter() - start
             print(
@@ -75,7 +107,7 @@ def run_mpc(scenario, reverse=False):
                 f"vy: {state.vy:<7.3f} | "
                 f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f} | "
                 f"mu: {env.unwrapped.track.find_mu(state.x, state.y):<7.3f} | "
-                f"thing: fzr {fzr} fxr {fxr} "
+                # f"thing: fzr {fzr} fxr {fxr} "
             )
 
             # Benchmarking
@@ -87,7 +119,9 @@ def run_mpc(scenario, reverse=False):
             alpha_f = steer_angle - jnp.arctan2(
                 state.vy + env.unwrapped.scenario.vehicle.lf * state.yaw_rate, vx_safe
             )
-            alpha_r = -jnp.arctan2(state.vy - env.unwrapped.scenario.vehicle.lr * state.yaw_rate, vx_safe)
+            alpha_r = -jnp.arctan2(
+                state.vy - env.unwrapped.scenario.vehicle.lr * state.yaw_rate, vx_safe
+            )
 
             slip_angles_f.append(alpha_f)
             slip_angles_r.append(alpha_r)
