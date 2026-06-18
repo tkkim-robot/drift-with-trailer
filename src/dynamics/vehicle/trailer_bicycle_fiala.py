@@ -242,11 +242,11 @@ def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None)
 
         # Tunable values
 
-        p_weight = 1e7
+        p_weight = 1e4
         p_slow_weight = 1e0
-        s_weight = 1e2
+        s_weight = 1e4
         c_weight = 1e-2
-        a_weight = 1e3
+        a_weight = 1e5
 
         ####### Helpers #######
 

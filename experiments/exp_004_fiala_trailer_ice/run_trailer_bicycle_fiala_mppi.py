@@ -27,11 +27,7 @@ def run_mpc(scenario, reverse=False):
 
     env.reset()
 
-    params = build_nominal_jax_params(
-        scenario=f"package://scenarios/{scenario}",
-    )
-
-    dynamics, cost, bound, _ = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=20)
+    dynamics, cost, bound, _ = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=25)
 
     mpc = MPPI_Jax(
         8,
@@ -40,12 +36,12 @@ def run_mpc(scenario, reverse=False):
         None,
         cost,
         bound,
-        jnp.diag(jnp.array([0.125, 1])),
-        inverse_temp=1e-3,
+        jnp.diag(jnp.array([1 / 512, 1])),
+        inverse_temp=10,
         K=1000,
         gamma=0.1,
         step=0.05,
-        T=75,
+        T=100,
     )
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
@@ -84,14 +80,16 @@ def run_mpc(scenario, reverse=False):
 
             # Benchmarking
             speeds.append(jnp.hypot(state.vx, state.vy))
-            yaw_rates.append(state.yaw_truck_rate)
+            yaw_rates.append(state.yaw_truck)
 
             vx_safe = jnp.maximum(jnp.abs(state.vx), 0.5)
-            steer_angle = state.steer * params[1].vehicle.max_steer_rad
+            steer_angle = state.steer * env.unwrapped.scenario.vehicle.max_steer_rad
             alpha_f = steer_angle - jnp.arctan2(
-                state.vy + params[1].vehicle.lf * state.yaw_truck_rate, vx_safe
+                state.vy + env.unwrapped.scenario.vehicle.lf * state.yaw_truck, vx_safe
             )
-            alpha_r = -jnp.arctan2(state.vy - params[1].vehicle.lr * state.yaw_truck_rate, vx_safe)
+            alpha_r = -jnp.arctan2(
+                state.vy - env.unwrapped.scenario.vehicle.lr * state.yaw_truck, vx_safe
+            )
 
             slip_angles_f.append(alpha_f)
             slip_angles_r.append(alpha_r)

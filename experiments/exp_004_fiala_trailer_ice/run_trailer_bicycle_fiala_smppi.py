@@ -32,23 +32,23 @@ def run_mpc(scenario, reverse=False):
         scenario=f"package://scenarios/{scenario}",
     )
 
-    dynamics, cost, bound, der_bound = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=-20)
+    dynamics, cost, bound, bound_der = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=-20)
 
     mpc = SMPPI_Jax(
-        8,
+        6,
         2,
         dynamics,
         None,
         cost,
         bound,
-        der_bound,
-        jnp.diag(jnp.array([0.0625, 1])),
+        bound_der,
+        jnp.diag(jnp.array([1 / 256, 1])), # 0.25, 0.75
         jnp.diag(jnp.array([1e-1, 1e-2])),
         inverse_temp=1,
-        K=550,
-        gamma=0.1,
+        K=1000,
+        gamma=1,
         step=0.05,
-        T=55,
+        T=100,
     )
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))

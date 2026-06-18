@@ -9,13 +9,6 @@ from src.simulation.config.bicycle_config import BicycleEnvConfig
 
 import jax.numpy as jnp
 
-"""
-TODO:
-- get mu and gamma from track (both env dynamics and mppi dynamics)
-- tune
-- benchmark
-"""
-
 
 def run_mpc(scenario, reverse=False):
     speeds, slip_angles_f, slip_angles_r, yaw_rates = [], [], [], []
@@ -42,9 +35,9 @@ def run_mpc(scenario, reverse=False):
         cost,
         bound,
         jnp.diag(jnp.array([0.0625, 1])),
-        inverse_temp=1e-2,
+        inverse_temp=1e-1,
         K=1000,
-        gamma=0.1,
+        gamma=5,
         step=0.05,
         T=100,
     )
@@ -151,4 +144,4 @@ if __name__ == "__main__":
     scenario = "ks_barcelona_layout_gp_dallara_f317_rl_long.yaml"
     # scenario = "sample_oval.yaml"
 
-    run_mpc(scenario, reverse=False)
+    run_mpc(scenario, reverse=True)
