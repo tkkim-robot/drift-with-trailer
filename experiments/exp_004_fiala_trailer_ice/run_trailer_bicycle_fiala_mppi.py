@@ -31,7 +31,7 @@ def run_mpc(scenario, reverse=False):
         scenario=f"package://scenarios/{scenario}",
     )
 
-    dynamics, cost, bound, _ = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=-20)
+    dynamics, cost, bound, _ = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=20)
 
     mpc = MPPI_Jax(
         8,

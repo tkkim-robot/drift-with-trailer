@@ -19,8 +19,8 @@ class VehicleConfig:
     wheelbase = 3.05
     lf = 1.45
     lr = 1.6
-    mass = 720.0
-    inertia_z = 900.0
+    mass = 2400.0
+    inertia_z = 6500.0
     cornering_stiffness_front = 90000.0
     cornering_stiffness_rear = 98000.0
     max_steer_rad = 0.32
@@ -32,12 +32,12 @@ class VehicleConfig:
     gamma = 1
 
     # Trailer
-    trailer_mass = 300
-    trailer_inertia_z = 320
-    l2f = 1.2
-    l2r = 1.3
+    trailer_mass = 1225
+    trailer_inertia_z = 850
+    l2f = 2.05
+    l2r = 0.4
     cornering_stiffness_trailer = 80000.0
-    hitch_offset = 1.9  # tractor CG to hitch (positive behind)
+    hitch_offset = 2.3  # tractor CG to hitch (positive behind)
     max_hitch = np.deg2rad(120)
 
 

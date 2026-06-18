@@ -2,18 +2,18 @@
 <robot name="tractor_trailer">
   <link name="base_link">
     <visual>
-      <origin xyz="0 0 0.15" rpy="0 0 0" />
+      <origin xyz="-0.075 0 0.15" rpy="0 0 0" />
       <geometry>
-        <box size="2.4 1.1 0.28" />
+        <box size="3.85 1.4 0.32" />
       </geometry>
       <material name="chassis_blue">
         <color rgba="0.15 0.38 0.85 1.0" />
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0.15" rpy="0 0 0" />
+      <origin xyz="-0.075 0 0.15" rpy="0 0 0" />
       <geometry>
-        <box size="2.4 1.1 0.28" />
+        <box size="3.85 1.4 0.32" />
       </geometry>
     </collision>
     <inertial>
@@ -33,7 +33,7 @@
   <joint name="front_left_steer" type="revolute">
     <parent link="base_link" />
     <child link="front_left_steer_link" />
-    <origin xyz="0.92 0.50 0.12" rpy="0 0 0" />
+    <origin xyz="1.45 0.50 0.12" rpy="0 0 0" />
     <axis xyz="0 0 1" />
     <limit lower="-0.8" upper="0.8" effort="1" velocity="5" />
   </joint>
@@ -42,16 +42,16 @@
     <visual>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
       <material name="wheel_black">
-        <color rgba="0.1 0.1 0.1 1.0" />
+        <color rgba="0.0 0.0 0.0 1.0" />
       </material>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
     </collision>
     <inertial>
@@ -77,7 +77,7 @@
   <joint name="front_right_steer" type="revolute">
     <parent link="base_link" />
     <child link="front_right_steer_link" />
-    <origin xyz="0.92 -0.50 0.12" rpy="0 0 0" />
+    <origin xyz="1.45 -0.50 0.12" rpy="0 0 0" />
     <axis xyz="0 0 1" />
     <limit lower="-0.8" upper="0.8" effort="1" velocity="5" />
   </joint>
@@ -86,16 +86,16 @@
     <visual>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
       <material name="wheel_black">
-        <color rgba="0.1 0.1 0.1 1.0" />
+        <color rgba="0.0 0.0 0.0 1.0" />
       </material>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
     </collision>
     <inertial>
@@ -115,16 +115,16 @@
     <visual>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
       <material name="wheel_black">
-        <color rgba="0.1 0.1 0.1 1.0" />
+        <color rgba="0.0 0.0 0.0 1.0" />
       </material>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
     </collision>
     <inertial>
@@ -136,7 +136,7 @@
   <joint name="rear_left_wheel" type="continuous">
     <parent link="base_link" />
     <child link="rear_left_wheel_link" />
-    <origin xyz="-0.92 0.50 0.12" rpy="0 0 0" />
+    <origin xyz="-1.60 0.50 0.12" rpy="0 0 0" />
     <axis xyz="0 1 0" />
   </joint>
 
@@ -144,16 +144,16 @@
     <visual>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
       <material name="wheel_black">
-        <color rgba="0.1 0.1 0.1 1.0" />
+        <color rgba="0.0 0.0 0.0 1.0" />
       </material>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
     </collision>
     <inertial>
@@ -165,27 +165,23 @@
   <joint name="rear_right_wheel" type="continuous">
     <parent link="base_link" />
     <child link="rear_right_wheel_link" />
-    <origin xyz="-0.92 -0.50 0.12" rpy="0 0 0" />
+    <origin xyz="-1.60 -0.50 0.12" rpy="0 0 0" />
     <axis xyz="0 1 0" />
   </joint>
-
-
-
-
 
   <joint name="hitch" type="revolute">
     <parent link="base_link" />
     <child link="trailer_link" />
-    <origin xyz="-1.0 0 0" rpy="0 0 0" />
+    <origin xyz="-2.3 0 0" rpy="0 0 0" />
     <axis xyz="0 0 1" />
-    <limit lower="-1.5708" upper="1.5708" effort="0" velocity="10" />
+    <limit lower="-2.0944" upper="2.0944" effort="0" velocity="10" />
   </joint>
 
   <link name="trailer_link">
     <visual>
       <origin xyz="-1.5 0 0.15" rpy="0 0 0" />
       <geometry>
-        <box size="3.4 1.1 0.28" />
+        <box size="3.4 1.4 0.3" />
       </geometry>
       <material name="chassis_red">
         <color rgba="1.0 0.0 0.0 1.0" />
@@ -194,12 +190,12 @@
     <collision>
       <origin xyz="-1.5 0 0.15" rpy="0 0 0" />
       <geometry>
-        <box size="3.4 1.1 0.28" />
+        <box size="3.4 1.4 0.28" />
       </geometry>
     </collision>
     <inertial>
       <mass value="1.5" />
-      <origin xyz="-1.5 0 0.15" rpy="0 0 0" />
+      <origin xyz="-1.2 0 0.15" rpy="0 0 0" />
       <inertia ixx="1" ixy="0" ixz="0" iyy="2" iyz="0" izz="2" />
     </inertial>
   </link>
@@ -208,16 +204,16 @@
     <visual>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
       <material name="wheel_black">
-        <color rgba="0.1 0.1 0.1 1.0" />
+        <color rgba="0.0 0.0 0.0 1.0" />
       </material>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
     </collision>
     <inertial>
@@ -229,7 +225,7 @@
   <joint name="trailer_left_wheel" type="continuous">
     <parent link="trailer_link" />
     <child link="trailer_left_wheel_link" />
-    <origin xyz="-3.0 0.50 0.12" rpy="0 0 0" />
+    <origin xyz="-2.5 0.50 0.12" rpy="0 0 0" />
     <axis xyz="0 1 0" />
   </joint>
 
@@ -237,16 +233,16 @@
     <visual>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
       <material name="wheel_black">
-        <color rgba="0.1 0.1 0.1 1.0" />
+        <color rgba="0.0 0.0 0.0 1.0" />
       </material>
     </visual>
     <collision>
       <origin xyz="0 0 0" rpy="1.5708 0 0" />
       <geometry>
-        <cylinder radius="0.16" length="0.14" />
+        <cylinder radius="0.33" length="0.14" />
       </geometry>
     </collision>
     <inertial>
@@ -258,7 +254,7 @@
   <joint name="trailer_right_wheel" type="continuous">
     <parent link="trailer_link" />
     <child link="trailer_right_wheel_link" />
-    <origin xyz="-3.0 -0.50 0.12" rpy="0 0 0" />
+    <origin xyz="-2.5 -0.50 0.12" rpy="0 0 0" />
     <axis xyz="0 1 0" />
   </joint>
 </robot>
