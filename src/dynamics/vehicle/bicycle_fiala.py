@@ -267,7 +267,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
         # )
 
         if v_target is None:
-            v_term = reverse * p_weight * jnp.abs(track_vel) * jnp.sign(x[3])
+            v_term = reverse * p_weight * jnp.abs(track_vel) * jnp.where(x[3] < 0, -1, 1)
         else:
             v_term = p_weight * jnp.abs(v_target + reverse * jnp.abs(track_vel) * jnp.sign(x[3]))
 

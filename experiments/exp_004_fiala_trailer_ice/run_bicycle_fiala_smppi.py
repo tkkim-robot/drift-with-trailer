@@ -11,7 +11,7 @@ from src.simulation.bicycle_env import BicycleEnv
 import jax.numpy as jnp
 
 
-def run_mpc(scenario, reverse=False):
+def run_mpc(reverse=False):
     speeds, slip_angles_f, slip_angles_r, yaw_rates = [], [], [], []
     env = BicycleEnv(
         renderer="pybullet",
@@ -35,9 +35,9 @@ def run_mpc(scenario, reverse=False):
         cost,
         bound,
         bound_der,
-        jnp.diag(jnp.array([1 / 256, 1])), # 0.25, 0.75
+        jnp.diag(jnp.array([1, 1])), # 0.25, 0.75
         jnp.diag(jnp.array([1e-1, 1e-2])),
-        inverse_temp=1,
+        inverse_temp=0.1,
         K=1000,
         gamma=1,
         step=0.05,
@@ -143,7 +143,4 @@ def run_mpc(scenario, reverse=False):
 
 
 if __name__ == "__main__":
-    scenario = "ks_barcelona_layout_gp_dallara_f317_rl_long.yaml"
-    # scenario = "sample_oval.yaml"
-
-    run_mpc(scenario, reverse=False)
+    run_mpc(reverse=True)

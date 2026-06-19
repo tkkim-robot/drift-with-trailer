@@ -32,7 +32,7 @@ def run_mpc(scenario, reverse=False):
         scenario=f"package://scenarios/{scenario}",
     )
 
-    dynamics, cost, bound, bound_der = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=-20)
+    dynamics, cost, bound, bound_der = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=20)
 
     mpc = SMPPI_Jax(
         6,
@@ -42,7 +42,7 @@ def run_mpc(scenario, reverse=False):
         cost,
         bound,
         bound_der,
-        jnp.diag(jnp.array([1 / 256, 1])), # 0.25, 0.75
+        jnp.diag(jnp.array([1, 0.01])), # 0.25, 0.75
         jnp.diag(jnp.array([1e-1, 1e-2])),
         inverse_temp=1,
         K=1000,
@@ -61,8 +61,14 @@ def run_mpc(scenario, reverse=False):
             state: VehicleState = env.unwrapped._state
 
             # David why is this JNP? why not
-            mpc_state = jnp.array(astuple(state)[:-2])
-            mpc_state = jnp.append(mpc_state, env.unwrapped.track.find_mu(state.x, state.y))
+            mpc_state = jnp.array(
+                [
+                    *astuple(state)[:-2],
+                    env.unwrapped.track.find_mu(state.x, state.y),
+                    env.unwrapped.track._arc_samples[env.unwrapped._last_index],
+                ]
+            )
+
 
             u = mpc.run_mpc(mpc_state)
             u.block_until_ready()

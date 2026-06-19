@@ -56,7 +56,7 @@ def rollout(
     if term_cost:
         S += term_cost(x, u[-1])
 
-    diff = (new_a[1:] - jnp.roll(new_a[:-1], 1, axis=0))
+    diff = new_a[1:] - new_a[:-1]
 
     S += jnp.einsum("tn,nm,tm->", diff, omega, diff)
 
