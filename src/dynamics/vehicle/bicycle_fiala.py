@@ -185,10 +185,10 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
 
         # Tunable values
 
-        p_weight = 1e3
+        p_weight = 1e4
         p_slow_weight = 1e0
         s_weight = 1e5
-        c_weight = 1e2
+        c_weight = 5e2
 
         ####### Helpers #######
 
@@ -258,7 +258,7 @@ def gen_util_funs(params: BicycleEnvConfig, reverse=False, v_target=None):
         track_vel = (raw_diff - track.length * jnp.round(raw_diff / track.length)) / step
 
         violation = jnp.maximum(
-            0, jnp.abs(projection_curr.lateral_error) - (params.track.width * 0.5) * 0.9 + 0.1
+            0, jnp.abs(projection_curr.lateral_error) - (params.track.width * 0.5) * 0.85 + 0.1
         )
 
         # safety_thresh = 1.0

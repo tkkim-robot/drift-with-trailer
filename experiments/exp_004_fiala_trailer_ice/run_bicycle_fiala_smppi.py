@@ -35,13 +35,13 @@ def run_mpc(reverse=False):
         cost,
         bound,
         bound_der,
-        jnp.diag(jnp.array([1, 1])), # 0.25, 0.75
-        jnp.diag(jnp.array([1e-1, 1e-2])),
-        inverse_temp=0.1,
+        jnp.diag(jnp.array([3e-2, 1])), # 0.25, 0.75
+        jnp.diag(jnp.array([1e1, 1e-1])),
+        inverse_temp=1e3,
         K=1000,
-        gamma=1,
+        # gamma=1,
         step=0.05,
-        T=100,
+        T=90,
     )
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
@@ -143,4 +143,4 @@ def run_mpc(reverse=False):
 
 
 if __name__ == "__main__":
-    run_mpc(reverse=True)
+    run_mpc(reverse=False)

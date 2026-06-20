@@ -36,12 +36,11 @@ def run_mpc(scenario, reverse=False):
         None,
         cost,
         bound,
-        jnp.diag(jnp.array([1 / 512, 1])),
-        inverse_temp=10,
+        jnp.diag(jnp.array([1e-3, 0.5])),
+        inverse_temp=1e3,
         K=1000,
-        gamma=0.1,
         step=0.05,
-        T=100,
+        T=50,
     )
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))

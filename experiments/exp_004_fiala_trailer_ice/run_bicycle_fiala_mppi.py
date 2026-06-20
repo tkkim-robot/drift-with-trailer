@@ -24,7 +24,7 @@ def run_mpc(scenario, reverse=False):
     env.reset()
 
     dynamics, cost, bound, _ = gen_util_funs(
-        env.unwrapped.scenario, reverse=reverse, v_target=None
+        env.unwrapped.scenario, reverse=reverse, v_target=40
     )
 
     mpc = MPPI_Jax(
@@ -34,10 +34,9 @@ def run_mpc(scenario, reverse=False):
         None,
         cost,
         bound,
-        jnp.diag(jnp.array([0.0625, 1])),
-        inverse_temp=1e-1,
+        jnp.diag(jnp.array([8e-3, 1])),
+        inverse_temp=2e3,
         K=1000,
-        gamma=5,
         step=0.05,
         T=100,
     )
@@ -144,4 +143,4 @@ if __name__ == "__main__":
     scenario = "ks_barcelona_layout_gp_dallara_f317_rl_long.yaml"
     # scenario = "sample_oval.yaml"
 
-    run_mpc(scenario, reverse=True)
+    run_mpc(scenario, reverse=False)

@@ -103,7 +103,7 @@ class MPPI_Jax:
         cv,
         inverse_temp=1,
         alpha=0.01,
-        gamma=0.01,
+        gamma=0.01, # TODO purge the repo of this term, it is calculated
         K=20000,
         step=0.02,
         T=70,
@@ -132,7 +132,7 @@ class MPPI_Jax:
         self.bound_control = bound_control_func
         self.alpha = alpha
         self.inverse_temp = inverse_temp
-        self.gamma = gamma
+        self.gamma = (1 - alpha) * inverse_temp
         self.K = K
         self.device = device
 
