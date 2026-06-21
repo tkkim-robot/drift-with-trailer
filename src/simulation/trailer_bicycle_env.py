@@ -283,7 +283,7 @@ class TrailerBicycleEnv(gym.Env):
         )
         self.track = TrackModel.from_config(self.scenario.track)
         self.dynamics = DynamicTrailerBicycleModel(self.scenario)
-        
+
         self.planner_debug = None
         self.renderer_kind = renderer
         self.render_mode = render_mode
@@ -427,9 +427,7 @@ class TrailerBicycleEnv(gym.Env):
     def step(self, action):
         assert self._state is not None, "Call reset() before step()."
         action = np.asarray(action, dtype=float)
-        proj, self._last_index = self.track.project(
-            self._state.x, self._state.y, self._last_index
-        )
+        proj, self._last_index = self.track.project(self._state.x, self._state.y, self._last_index)
 
         previous_progress = proj.progress
 
@@ -453,6 +451,8 @@ class TrailerBicycleEnv(gym.Env):
             or np.abs(self._state.yaw_trailer - self._state.yaw_truck)
             >= self.scenario.vehicle.max_hitch
         )
+
+      
         return self._observation(), 0, terminated, False, info
 
     def render(self):

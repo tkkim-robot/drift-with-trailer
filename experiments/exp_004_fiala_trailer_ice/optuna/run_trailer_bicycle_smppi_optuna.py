@@ -10,10 +10,7 @@ import jax
 import jax.numpy as jnp
 import optuna
 
-from experiments.exp_004_fiala_trailer_ice.utils.bicycle_driver import run_mpc
-from src.controllers.mpc.mppi_jax import MPPI_Jax
-from src.dynamics.vehicle.bicycle_fiala import gen_util_funs
-from src.simulation.bicycle_env import BicycleEnv
+from experiments.exp_004_fiala_trailer_ice.utils.trailer_driver import run_mpc
 
 
 @dataclass
@@ -28,7 +25,7 @@ class Config:
     v_target: float | None = 35.0
     p_weight_anchor: float = 1e2
     p_slow_weight: float = 1.0
-    mppi_alpha: float = 0.05
+    smppi_alpha: float = 0.05
     report_every: int = 150
     crash_score: float = -1.0e3  # NaN/inf blow-up sentinel (meters-scale)
 
@@ -36,14 +33,21 @@ class Config:
 def objective(trial):
     lam = trial.suggest_float("lambda", 1e-2, 1e3, log=True)
     cvs = trial.suggest_float("cv_steer", 1e-3, 1.0, log=True)
-    cva = trial.suggest_float("cv_accel", 1e-2, 1.0, log=True)
-    sw  = trial.suggest_float("s_weight", 1e-2, 1e5, log=True)
-    cw  = trial.suggest_float("c_weight", 1e-2, 1e3, log=True)
+    cva = trial.suggest_float("cv_accel", 1e-2, 4.0, log=True)
+    omega_s = trial.suggest_float("omega_steer", 1e-3, 1.0, log=True)
+    omega_a = trial.suggest_float("omega_accel", 1e-3, 4.0, log=True)
+    sw = trial.suggest_float("s_weight", 1e0, 1e9, log=True)
+    cw = trial.suggest_float("c_weight", 1e-2, 1e3, log=True)
     return run_mpc(
-        "MPPI",
+        "SMPPI",
         ctl_args=(jnp.diag(jnp.array([cvs, cva])),),
         ctl_kwargs=dict(
-            inverse_temp=lam, alpha=Config.mppi_alpha, K=Config.K, step=Config.step, T=Config.T
+            inverse_temp=lam,
+            alpha=Config.smppi_alpha,
+            K=Config.K,
+            step=Config.step,
+            T=Config.T,
+            omega=jnp.diag(jnp.array([omega_s, omega_a])),
         ),
         cost_kwargs=dict(
             reverse=False,
@@ -65,8 +69,8 @@ def objective(trial):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--trials", type=int, default=100)
-    ap.add_argument("--study-name", default="mppi_car_task004")
-    ap.add_argument("--storage", default="sqlite:///optuna_mppi_car.db")
+    ap.add_argument("--study-name", default="smppi_car_task004")
+    ap.add_argument("--storage", default="sqlite:///optuna_smppi_car.db")
     ap.add_argument("--K", type=int, default=Config.K)
     ap.add_argument("--T", type=int, default=Config.T)
     ap.add_argument("--max-steps", type=int, default=Config.max_steps)
@@ -101,7 +105,7 @@ def main():
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=cfg.max_steps // 3),
     )
 
-    study.optimize(objective, n_trials=args.trials, gc_after_trial=True )
+    study.optimize(objective, n_trials=args.trials, gc_after_trial=True)
 
     print("\n=== best trial ===")
     bt = study.best_trial

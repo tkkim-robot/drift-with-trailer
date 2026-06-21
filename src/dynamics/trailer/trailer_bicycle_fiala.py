@@ -19,14 +19,15 @@ class TrackProjection(NamedTuple):
 
 
 def gen_util_funs(
-        params: TrailerBicycleEnvConfig, 
-        reverse=False, 
-        v_target=None,
-        p_weight = 1e4,
-        p_slow_weight = 1e0,
-        s_weight = 1e4,
-        c_weight = 1e-2,
-        a_weight = 1e5,):
+    params: TrailerBicycleEnvConfig,
+    reverse=False,
+    v_target=None,
+    p_weight=1e4,
+    p_slow_weight=1e0,
+    s_weight=1e4,
+    c_weight=1e-2,
+    a_weight=1e5,
+):
     reverse = 1 if reverse else -1
     step = params.simulation.dt
 
@@ -82,7 +83,7 @@ def gen_util_funs(
                 ),
             ),
             window[index],
-        )   
+        )
 
     def compute_fy(alpha, cc, fz, fx, mu, gamma):
         fy_max = jnp.sqrt(jnp.maximum((mu * fz) ** 2 - gamma * fx**2, 0))
@@ -231,9 +232,8 @@ def gen_util_funs(
         xdot = avg_vx * jnp.cos(phi_1) - avg_vy * jnp.sin(phi_1)
         ydot = avg_vx * jnp.sin(phi_1) + avg_vy * jnp.cos(phi_1)
 
-
         # Track v for efficiency
-        index = jnp.searchsorted(track._cumulative, arc_len, side='right') - 1
+        index = jnp.searchsorted(track._cumulative, arc_len, side="right") - 1
 
         projection_curr, _ = _project_to_track(x, y, index)
         projection_next, _ = _project_to_track(x + step * xdot, y + step * ydot, index)
@@ -242,7 +242,18 @@ def gen_util_funs(
         track_vel = (raw_diff - track.length * jnp.round(raw_diff / track.length)) / step
 
         return jnp.array(
-            [xdot, ydot, phi_1_dot, phi_2_dot, v_1x_dot, v_1y_dot, phi_1_ddot, phi_2_ddot, 0, track_vel]
+            [
+                xdot,
+                ydot,
+                phi_1_dot,
+                phi_2_dot,
+                v_1x_dot,
+                v_1y_dot,
+                phi_1_ddot,
+                phi_2_ddot,
+                0,
+                track_vel,
+            ]
         )
 
     @jax.jit
@@ -313,6 +324,7 @@ def gen_util_funs(
             # TODO need trailer slip penalty
 
             return pen_f**2 + pen_r**2
+
         ####### End Helpers #######
 
         yaw = x[2]
@@ -321,7 +333,7 @@ def gen_util_funs(
 
         nominal_v = jnp.sqrt(x[4] ** 2 + x[5] ** 2)
 
-        index = jnp.searchsorted(track._cumulative, x[9], side='right') - 1
+        index = jnp.searchsorted(track._cumulative, x[9], side="right") - 1
 
         projection_curr, _ = _project_to_track(x[0], x[1], index)
         projection_next, _ = _project_to_track(x[0] + step * gvx, x[1] + step * gvy, index)

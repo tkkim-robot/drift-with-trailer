@@ -10,11 +10,7 @@ import jax
 import jax.numpy as jnp
 import optuna
 
-from experiments.exp_004_fiala_trailer_ice.utils.bicycle_driver import run_mpc
-from src.controllers.mpc.mppi_jax import MPPI_Jax
-from src.dynamics.vehicle.bicycle_fiala import gen_util_funs
-from src.simulation.bicycle_env import BicycleEnv
-
+from experiments.exp_004_fiala_trailer_ice.utils.trailer_driver import run_mpc
 
 @dataclass
 class Config:
@@ -36,9 +32,9 @@ class Config:
 def objective(trial):
     lam = trial.suggest_float("lambda", 1e-2, 1e3, log=True)
     cvs = trial.suggest_float("cv_steer", 1e-3, 1.0, log=True)
-    cva = trial.suggest_float("cv_accel", 1e-2, 1.0, log=True)
-    sw  = trial.suggest_float("s_weight", 1e-2, 1e5, log=True)
-    cw  = trial.suggest_float("c_weight", 1e-2, 1e3, log=True)
+    cva = trial.suggest_float("cv_accel", 1e-2, 4.0, log=True)
+    sw = trial.suggest_float("s_weight", 1e2, 1e9, log=True)
+    cw = trial.suggest_float("c_weight", 1e-2, 1e3, log=True)
     return run_mpc(
         "MPPI",
         ctl_args=(jnp.diag(jnp.array([cvs, cva])),),
@@ -101,7 +97,7 @@ def main():
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=cfg.max_steps // 3),
     )
 
-    study.optimize(objective, n_trials=args.trials, gc_after_trial=True )
+    study.optimize(objective, n_trials=args.trials, gc_after_trial=True)
 
     print("\n=== best trial ===")
     bt = study.best_trial
