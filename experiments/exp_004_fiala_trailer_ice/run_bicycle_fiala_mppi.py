@@ -14,7 +14,7 @@ ctl_kwargs = {
 }
 cost_kwargs = {
     "reverse": False, 
-    "v_target": 30,
+    "v_target": -30,
     "p_weight": 1e2,
     "p_slow_weight": 1e0,
     "s_weight": 808.4087416389013,

@@ -108,7 +108,7 @@ class MPPI_Jax_Debug:
         cv,
         inverse_temp=1,
         alpha=0.01,
-        gamma=0.01, # TODO purge the repo of this term, it is calculated
+        gamma=0.01,  # TODO purge the repo of this term, it is calculated
         K=20000,
         step=0.02,
         T=70,
@@ -140,7 +140,6 @@ class MPPI_Jax_Debug:
         self.gamma = (1 - alpha) * inverse_temp
         self.K = K
         self.device = device
-
 
         self.x_d = x_d
         self.u_d = u_d
@@ -190,7 +189,7 @@ class MPPI_Jax_Debug:
 
         return S, noise, xhist
 
-    def run_mpc(self, x: ArrayLike) -> torch.Tensor:
+    def run_mpc(self, x: ArrayLike) -> tuple[ArrayLike, ArrayLike]:
         """
         Runs a single MPC solve.
 

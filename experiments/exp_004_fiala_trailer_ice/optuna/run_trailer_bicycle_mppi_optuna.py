@@ -10,11 +10,7 @@ import jax
 import jax.numpy as jnp
 import optuna
 
-from experiments.exp_004_fiala_trailer_ice.utils.bicycle_driver import run_mpc
-from src.controllers.mpc.mppi_jax import MPPI_Jax
-from src.dynamics.vehicle.bicycle_fiala import gen_util_funs
-from src.simulation.bicycle_env import BicycleEnv
-
+from experiments.exp_004_fiala_trailer_ice.utils.trailer_driver import run_mpc
 
 @dataclass
 class Config:
@@ -101,7 +97,7 @@ def main():
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=cfg.max_steps // 3),
     )
 
-    study.optimize(objective, n_trials=args.trials, gc_after_trial=True )
+    study.optimize(objective, n_trials=args.trials, gc_after_trial=True)
 
     print("\n=== best trial ===")
     bt = study.best_trial

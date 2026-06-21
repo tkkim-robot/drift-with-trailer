@@ -11,7 +11,9 @@ import functools
 
 
 @functools.partial(jax.jit, static_argnames=["cost", "term_cost", "bound_control", "dynamics"])
-@functools.partial(jax.vmap, in_axes=(0, 0, None, 0, None, None, None, None, None, None, None, None))
+@functools.partial(
+    jax.vmap, in_axes=(0, 0, None, 0, None, None, None, None, None, None, None, None)
+)
 def rollout(
     x: ArrayLike,
     u: ArrayLike,
@@ -123,7 +125,7 @@ class SMPPI_Jax_Debug:
         omega,
         inverse_temp=1,
         alpha=0.01,
-        gamma=0.01, # TODO remove
+        gamma=0.01,  # TODO remove
         K=20000,
         step=0.02,
         T=70,
@@ -186,7 +188,7 @@ class SMPPI_Jax_Debug:
         v = v.at[prev:].set(noise[prev:])
         v = self.bound_der_control(v)
         noise = v - u
-        
+
         # v = self.bound_control(v)
         # noise = v - u
         new_a = a + v
@@ -233,7 +235,6 @@ class SMPPI_Jax_Debug:
             self._forward_sim,
         )
 
-        
         self.last_trajectory = u, a
 
         return a[0], xhist

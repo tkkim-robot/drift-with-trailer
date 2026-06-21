@@ -89,7 +89,7 @@ def run_mpc(
 
     i = 0
     try:
-        while True:
+        while not terminated:
             start = time.perf_counter()
 
             state: VehicleState = env.unwrapped._state
@@ -161,7 +161,7 @@ def run_mpc(
     if benchmark:
         cutoff = 100
         print(
-            f"Reverse: {cost_kwargs["reverse"]}, "
+            f"Reverse: {cost_kwargs['reverse']}, "
             f"Avg speed: {jnp.mean(jnp.array(speeds[cutoff:]))}, "
             f"Avg alpha_f: {jnp.mean(jnp.array(slip_angles_f[cutoff:]))}, "
             f"Avg alpha_r: {jnp.mean(jnp.array(slip_angles_r[cutoff:]))}, "
