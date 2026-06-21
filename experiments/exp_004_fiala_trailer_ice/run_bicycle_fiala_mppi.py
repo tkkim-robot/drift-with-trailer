@@ -3,13 +3,13 @@ from experiments.exp_004_fiala_trailer_ice.utils.bicycle_driver import run_mpc
 import jax.numpy as jnp
 
 ctl_args = (
-    jnp.diag(jnp.array([0.013178974044529336, 0.06115174214186951])),
+    jnp.diag(jnp.array([1e-3, 0.06115174214186951])),
 )
 ctl_kwargs = {
-    "inverse_temp": 0.01155091515764931,
+    "inverse_temp": 0.1,
     "K": 750,
     "step": 0.05,
-    "T": 85,
+    "T": 75,
     "alpha": 0.851356016887989,
 }
 cost_kwargs = {

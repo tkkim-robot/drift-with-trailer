@@ -2,6 +2,7 @@
 Unified MPPI + SMPPI driver for bicycle dynamics
 """
 
+import itertools
 from src.controllers.mpc.mppi_jax import MPPI_Jax
 from src.controllers.mpc.smppi_jax import SMPPI_Jax
 from src.controllers.mpc.debug.mppi_jax_debug import MPPI_Jax_Debug
@@ -37,6 +38,8 @@ def run_mpc(
     benchmark=False,
     headless=False,
     env_kwargs=None,
+    max_steps=None,
+    return_metric=False,
 ):
     """
     ctl_args for MPPI is only covariance. For SMPPI is covariance and omega.
@@ -86,9 +89,10 @@ def run_mpc(
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
+    loop = range(max_steps) if max_steps is not None else itertools.count()
     i = 0
     try:
-        while True:
+        for i in loop:
             start = time.perf_counter()
 
             state: VehicleState = env.unwrapped._state
@@ -116,7 +120,7 @@ def run_mpc(
 
             elapsed = time.perf_counter() - start
             
-            if benchmark:
+            if return_metric or benchmark:
                 speeds.append(jnp.hypot(state.vx, state.vy))
                 yaw_rates.append(state.yaw_rate)
 
@@ -156,7 +160,7 @@ def run_mpc(
                 frame = env.render()
                 cv2.imshow("sim", frame[..., ::-1])
                 cv2.waitKey(1)
-    
+
     except KeyboardInterrupt:
         pass
 
@@ -171,4 +175,15 @@ def run_mpc(
             f"Avg alpha_r: {jnp.mean(jnp.array(slip_angles_r[cutoff:]))}, "
             f"Avg yaw_rate: {jnp.mean(jnp.array(yaw_rates[cutoff:]))}"
     )
+        
+    if return_metric:
+        steps = i + 1
+        if terminated and steps < (max_steps or 10**9):     # infeasible: graded by how early
+            return 1e4 * (1.0 + (max_steps - steps) / max_steps)
+        vt = cost_kwargs.get("v_target") or 0.0
+        sp, af, yr = (jnp.array(speeds), jnp.abs(jnp.array(slip_angles_r)), jnp.abs(jnp.array(yaw_rates)))
+        speed_err = float(jnp.mean((sp - vt) ** 2))
+        spin_pen  = float(jnp.mean(jnp.maximum(0.0, af - 0.25) ** 2)
+                          + jnp.mean(jnp.maximum(0.0, yr - 1.5) ** 2))
+        return speed_err + 50.0 * spin_pen
 

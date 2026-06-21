@@ -11,7 +11,7 @@ ctl_kwargs = {
     "K": 750,
     "step": 0.05,
     "T": 65,
-    "alpha": 0.851356016887989,
+    "alpha": 0.05,
 }
 cost_kwargs = {
     "reverse": False, 
