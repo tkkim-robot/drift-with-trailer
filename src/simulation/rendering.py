@@ -352,7 +352,7 @@ class PyBulletMirrorRenderer:
         if mode == "birds_eye":
             target = [x, y, 0.0]
             view = p.computeViewMatrixFromYawPitchRoll(
-                target, distance=35.0, yaw=0.0, pitch=-89.0, roll=0.0, upAxisIndex=2
+                target, distance=45.0, yaw=0.0, pitch=-89.0, roll=0.0, upAxisIndex=2
             )
         elif mode == "cinematic":
             orbit_yaw = math.degrees((self._frame_index * 0.03) % (2.0 * math.pi))

@@ -18,7 +18,15 @@ class TrackProjection(NamedTuple):
     curvature: Array
 
 
-def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None):
+def gen_util_funs(
+        params: TrailerBicycleEnvConfig, 
+        reverse=False, 
+        v_target=None,
+        p_weight = 1e4,
+        p_slow_weight = 1e0,
+        s_weight = 1e4,
+        c_weight = 1e-2,
+        a_weight = 1e5,):
     reverse = 1 if reverse else -1
     step = params.simulation.dt
 
@@ -241,12 +249,6 @@ def gen_util_funs(params: TrailerBicycleEnvConfig, reverse=False, v_target=None)
     def cost(x, u, t):
 
         # Tunable values
-
-        p_weight = 1e4
-        p_slow_weight = 1e0
-        s_weight = 1e4
-        c_weight = 1e-2
-        a_weight = 1e5
 
         ####### Helpers #######
 

@@ -283,7 +283,8 @@ class TrailerBicycleEnv(gym.Env):
         )
         self.track = TrackModel.from_config(self.scenario.track)
         self.dynamics = DynamicTrailerBicycleModel(self.scenario)
-
+        
+        self.planner_debug = None
         self.renderer_kind = renderer
         self.render_mode = render_mode
         self.render_width = int(render_width)
@@ -465,7 +466,7 @@ class TrailerBicycleEnv(gym.Env):
                 width=self.render_width,
                 height=self.render_height,
             )
-        return self.renderer.render(self._render_state())
+        return self.renderer.render(self._render_state(), planner_debug=self.planner_debug)
 
     def close(self):
         if self.renderer is not None:

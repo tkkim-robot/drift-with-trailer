@@ -201,6 +201,7 @@ class BicycleEnv(gym.Env):
         self.track = TrackModel.from_config(self.scenario.track)
         self.dynamics = DynamicBicycleModel(self.scenario)  # TODO
 
+        self.planner_debug = None
         self.renderer_kind = renderer
         self.render_mode = render_mode
         self.render_width = int(render_width)
@@ -365,7 +366,7 @@ class BicycleEnv(gym.Env):
         terminated = self.track.out_of_bounds(projection.lateral_error)
         return self._observation(), 0, terminated, False, info
 
-    def render(self, planner_debug=None):
+    def render(self):
         if self.render_mode is None or self.renderer_kind != "pybullet":
             return None
         if self.renderer is None:
@@ -376,7 +377,7 @@ class BicycleEnv(gym.Env):
                 width=self.render_width,
                 height=self.render_height,
             )
-        return self.renderer.render(self._render_state(), planner_debug=planner_debug)
+        return self.renderer.render(self._render_state(), planner_debug=self.planner_debug)
 
     def close(self):
         if self.renderer is not None:
