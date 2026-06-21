@@ -1,25 +1,45 @@
 import gymnasium as gym
 from src.controllers.mpc.mppi_jax import MPPI_Jax
+from src.controllers.mpc.debug.mppi_jax_debug import MPPI_Jax_Debug
+
 from src.dynamics.vehicle.bicycle_fiala import gen_util_funs
 import time
 import cv2
+import numpy as np
 from gymnasium.wrappers import RecordVideo
 from src.simulation.bicycle_env import BicycleEnv, VehicleState
 from src.simulation.config.bicycle_config import BicycleEnvConfig
 
 import jax.numpy as jnp
 
+def build_planner_debug(all_samples, n_vis):
+    if all_samples is None:
+        return None
+    K = all_samples.shape[0]
+    n = int(min(n_vis, K))
+    idx = jnp.linspace(0, K - 1, n).astype(jnp.int32)      # even spread across samples
+    cand = np.asarray(all_samples[idx, :, :2])             # (n, T, 2), small transfer
+    return {"candidate_xy": cand}
 
-def run_mpc(scenario, reverse=False):
+
+def run_mpc(
+    scenario, 
+    reverse=False, 
+    record=False,
+    debug=False,
+):
+    
     speeds, slip_angles_f, slip_angles_r, yaw_rates = [], [], [], []
+    
     env = BicycleEnv(
         renderer="pybullet",
         render_mode="rgb_array_birds_eye",
-        render_width=300,
-        render_height=200,
+        render_width=450,
+        render_height=300,
     )
 
-    env = RecordVideo(env, video_folder="gym_videos", episode_trigger=lambda x: True)
+    if record:
+        env = RecordVideo(env, video_folder="gym_videos", episode_trigger=lambda x: True)
 
     env.reset()
 
@@ -33,20 +53,30 @@ def run_mpc(scenario, reverse=False):
         c_weight = 0.012476149239058718,
     )
 
-    mpc = MPPI_Jax(
-        6,
-        2,
-        dynamics,
-        None,
-        cost,
-        bound,
-        jnp.diag(jnp.array([0.013178974044529336, 0.06115174214186951])),
-        inverse_temp=0.01155091515764931,
-        K=750,
-        step=0.05,
-        T=85,
-        alpha=0.851356016887989,
+    # For hand-tuning
+
+    args = (
+        6, 
+        2, 
+        dynamics, 
+        None, 
+        cost, 
+        bound, 
+        jnp.diag(jnp.array([0.013178974044529336, 0.06115174214186951]))
     )
+    kwargs = {
+        "inverse_temp": 0.01155091515764931,
+        "K": 750,
+        "step": 0.05,
+        "T": 85,
+        "alpha": 0.851356016887989,
+    }
+
+    if debug:
+        mpc = MPPI_Jax_Debug(*args, **kwargs)
+    else:
+        mpc = MPPI_Jax(*args, **kwargs)
+    
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
@@ -70,31 +100,13 @@ def run_mpc(scenario, reverse=False):
                 ]
             )
 
-            u = mpc.run_mpc(mpc_state)
+            xhist = None
+            if debug:
+                u, xhist = mpc.run_mpc(mpc_state)
+            else:
+                u = mpc.run_mpc(mpc_state)
+            
             u.block_until_ready()
-
-            fzr = (
-                env.unwrapped.scenario.vehicle.mass
-                * 9.8
-                * env.unwrapped.scenario.vehicle.lf
-                / (
-                    env.unwrapped.scenario.vehicle.lf
-                    + env.unwrapped.scenario.vehicle.lr
-                )
-            )
-            commanded = (
-                jnp.maximum(u[1], 0) * env.unwrapped.scenario.vehicle.max_accel
-                - jnp.maximum(-u[1], 0) * env.unwrapped.scenario.vehicle.max_brake
-            )
-            fxr = (
-                env.unwrapped.track.find_mu(state.x, state.y)
-                * fzr
-                * jnp.tanh(
-                    env.unwrapped.scenario.vehicle.mass
-                    * commanded
-                    / (fzr * env.unwrapped.track.find_mu(state.x, state.y))
-                )
-            )
 
             elapsed = time.perf_counter() - start
             print(
@@ -106,35 +118,21 @@ def run_mpc(scenario, reverse=False):
                 f"vy: {state.vy:<7.3f} | "
                 f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f} | "
                 f"mu: {env.unwrapped.track.find_mu(state.x, state.y):<7.3f} | "
-                # f"thing: fzr {fzr} fxr {fxr} "
             )
-
-            # Benchmarking
-            speeds.append(jnp.hypot(state.vx, state.vy))
-            yaw_rates.append(state.yaw_rate)
-
-            vx_safe = jnp.maximum(jnp.abs(state.vx), 0.5)
-            steer_angle = state.steer * env.unwrapped.scenario.vehicle.max_steer_rad
-            alpha_f = steer_angle - jnp.arctan2(
-                state.vy + env.unwrapped.scenario.vehicle.lf * state.yaw_rate, vx_safe
-            )
-            alpha_r = -jnp.arctan2(
-                state.vy - env.unwrapped.scenario.vehicle.lr * state.yaw_rate, vx_safe
-            )
-
-            slip_angles_f.append(alpha_f)
-            slip_angles_r.append(alpha_r)
+            i += 1
 
             action = jnp.array([u[0], u[1]])
+
             observation, reward, terminated, truncated, info = env.step(action)
 
-            if terminated:  # or truncated:
-                break
+            n_viz = 50
 
-            i += 1
-            frame = env.render()
+            planner_debug = build_planner_debug(xhist, n_viz) if debug else None
+
+            frame = env.render(planner_debug=planner_debug)
             cv2.imshow("sim", frame[..., ::-1])
             cv2.waitKey(1)
+    
     except KeyboardInterrupt:
         pass
 
@@ -150,4 +148,9 @@ if __name__ == "__main__":
     scenario = "ks_barcelona_layout_gp_dallara_f317_rl_long.yaml"
     # scenario = "sample_oval.yaml"
 
-    run_mpc(scenario, reverse=False)
+    run_mpc(
+        scenario, 
+        reverse=False,
+        record=False,
+        debug=True,
+    )

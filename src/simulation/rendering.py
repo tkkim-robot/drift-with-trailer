@@ -18,11 +18,6 @@ from src.simulation.config.trailer_bicycle_config import TrailerBicycleEnvConfig
 
 from src.utils.track import TrackModel
 
-
-def package_asset_path(relative_path: str) -> Path:
-    return Path(str(files("uncertain_racecar_gym").joinpath("assets").joinpath(relative_path)))
-
-
 class PyBulletMirrorRenderer:
     def __init__(
         self,
@@ -357,7 +352,7 @@ class PyBulletMirrorRenderer:
         if mode == "birds_eye":
             target = [x, y, 0.0]
             view = p.computeViewMatrixFromYawPitchRoll(
-                target, distance=18.0, yaw=0.0, pitch=-89.0, roll=0.0, upAxisIndex=2
+                target, distance=35.0, yaw=0.0, pitch=-89.0, roll=0.0, upAxisIndex=2
             )
         elif mode == "cinematic":
             orbit_yaw = math.degrees((self._frame_index * 0.03) % (2.0 * math.pi))

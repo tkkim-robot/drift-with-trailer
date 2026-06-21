@@ -1,7 +1,7 @@
 from uncertain_racecar_gym.jax_env import build_nominal_jax_params
 from src.simulation.trailer_bicycle_env import VehicleState
 from src.controllers.mpc.mppi_jax import MPPI_Jax
-from src.dynamics.vehicle.trailer_bicycle_fiala import gen_util_funs
+from dynamics.trailer.trailer_bicycle_fiala import gen_util_funs
 import time
 import cv2
 from gymnasium.wrappers import RecordVideo
@@ -19,8 +19,8 @@ def run_mpc(scenario, reverse=False):
     env = TrailerBicycleEnv(
         renderer="pybullet",
         render_mode="rgb_array_birds_eye",
-        render_width=300,
-        render_height=200,
+        render_width=600,
+        render_height=400,
     )
 
     env = RecordVideo(env, video_folder="gym_videos", episode_trigger=lambda x: True)

@@ -1,7 +1,7 @@
 from uncertain_racecar_gym.jax_env import build_nominal_jax_params
 from src.simulation.trailer_bicycle_env import VehicleState
 from src.controllers.mpc.smppi_jax import SMPPI_Jax
-from src.dynamics.vehicle.trailer_bicycle_fiala import gen_util_funs
+from dynamics.trailer.trailer_bicycle_fiala import gen_util_funs
 import time
 import cv2
 from gymnasium.wrappers import RecordVideo

@@ -365,7 +365,7 @@ class BicycleEnv(gym.Env):
         terminated = self.track.out_of_bounds(projection.lateral_error)
         return self._observation(), 0, terminated, False, info
 
-    def render(self):
+    def render(self, planner_debug=None):
         if self.render_mode is None or self.renderer_kind != "pybullet":
             return None
         if self.renderer is None:
@@ -376,7 +376,7 @@ class BicycleEnv(gym.Env):
                 width=self.render_width,
                 height=self.render_height,
             )
-        return self.renderer.render(self._render_state())
+        return self.renderer.render(self._render_state(), planner_debug=planner_debug)
 
     def close(self):
         if self.renderer is not None:
