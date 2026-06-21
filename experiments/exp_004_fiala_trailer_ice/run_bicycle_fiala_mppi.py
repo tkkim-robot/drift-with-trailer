@@ -24,7 +24,13 @@ def run_mpc(scenario, reverse=False):
     env.reset()
 
     dynamics, cost, bound, _ = gen_util_funs(
-        env.unwrapped.scenario, reverse=reverse, v_target=40
+        env.unwrapped.scenario, 
+        reverse=reverse, 
+        v_target=30,
+        p_weight = 1e2,
+        p_slow_weight = 1e0,
+        s_weight = 808.4087416389013,
+        c_weight = 0.012476149239058718,
     )
 
     mpc = MPPI_Jax(
@@ -34,11 +40,12 @@ def run_mpc(scenario, reverse=False):
         None,
         cost,
         bound,
-        jnp.diag(jnp.array([8e-3, 1])),
-        inverse_temp=2e3,
-        K=1000,
+        jnp.diag(jnp.array([0.013178974044529336, 0.06115174214186951])),
+        inverse_temp=0.01155091515764931,
+        K=750,
         step=0.05,
-        T=100,
+        T=85,
+        alpha=0.851356016887989,
     )
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
