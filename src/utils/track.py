@@ -135,7 +135,7 @@ class TrackModel:
         if start > end:
             start, end = end, start
 
-        window = np.arange(start, end)
+        window = np.arange(start, end) % self._arc_samples.shape[0]
         segments_window = np.take(
             self._segments, window, mode="wrap", axis=0
         )

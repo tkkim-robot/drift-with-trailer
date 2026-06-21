@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 from gymnasium.wrappers import RecordVideo
 from src.simulation.bicycle_env import BicycleEnv, VehicleState
+import os
 
 import jax.numpy as jnp
 
@@ -162,6 +163,8 @@ def run_mpc(
                 cv2.waitKey(1)
 
     except KeyboardInterrupt:
+        if return_metric:
+            os._exit(1)
         pass
 
     env.close()

@@ -36,8 +36,8 @@ class Config:
 def objective(trial):
     lam = trial.suggest_float("lambda", 1e-2, 1e3, log=True)
     cvs = trial.suggest_float("cv_steer", 1e-3, 1.0, log=True)
-    cva = trial.suggest_float("cv_accel", 1e-2, 4.0, log=True)
-    sw  = trial.suggest_float("s_weight", 1e2, 1e9, log=True)
+    cva = trial.suggest_float("cv_accel", 1e-2, 1.0, log=True)
+    sw  = trial.suggest_float("s_weight", 1e-2, 1e5, log=True)
     cw  = trial.suggest_float("c_weight", 1e-2, 1e3, log=True)
     return run_mpc(
         "MPPI",
@@ -77,7 +77,7 @@ def main():
     study = optuna.create_study(
         study_name=args.study_name,
         storage=args.storage,
-        direction="maximize",
+        direction="minimize",
         load_if_exists=True,
         sampler=optuna.samplers.CmaEsSampler(),
         pruner=optuna.pruners.MedianPruner(n_warmup_steps=cfg.max_steps // 3),
