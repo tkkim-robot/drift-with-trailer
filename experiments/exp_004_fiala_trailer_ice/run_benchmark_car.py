@@ -86,6 +86,6 @@ if __name__ == "__main__":
                 debug=True,
                 max_steps=3000,
                 print_name=name[i],
-                record_file_name=f"{mode}_v={str(v_tt)}_r={reverse}"
+                record_file_name=f"{mode}_v={str(v_t)}_r={reverse}"
             )
         

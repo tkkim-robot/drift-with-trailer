@@ -15,6 +15,7 @@ from gymnasium.wrappers import RecordVideo
 from src.simulation.trailer_bicycle_env import TrailerBicycleEnv, VehicleState
 from dataclasses import astuple
 import warnings
+import itertools
 
 import jax.numpy as jnp
 
@@ -39,6 +40,8 @@ def run_mpc(
     benchmark=False,
     headless=False,
     env_kwargs=None,
+    max_steps=None,
+    print_name=None,
     record_file_name=None,
 ):
     """
@@ -93,9 +96,14 @@ def run_mpc(
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
 
+    loop = range(max_steps) if max_steps is not None else itertools.count()
+
     i = 0
     try:
-        while not terminated:
+        for i in loop:
+            if terminated:
+                break
+
             start = time.perf_counter()
 
             state: VehicleState = env.unwrapped._state
@@ -166,10 +174,14 @@ def run_mpc(
 
     if benchmark:
         cutoff = 100
+
+        if print_name is not None:
+            print(print_name)
+
         print(
             f"Iters: {i}, "
             f"Reverse: {cost_kwargs['reverse']}, "
-            f"Avg speed: {jnp.mean(jnp.array(speeds[cutoff:]))}, "
+            f"Avg speed: {jnp.mean(jnp.array(speeds[cutoff:])) * 3.6}, "
             f"Avg alpha_f: {jnp.mean(jnp.array(slip_angles_f[cutoff:]))}, "
             f"Avg alpha_r: {jnp.mean(jnp.array(slip_angles_r[cutoff:]))}, "
             f"Avg yaw_rate: {jnp.mean(jnp.array(yaw_rates[cutoff:]))}"

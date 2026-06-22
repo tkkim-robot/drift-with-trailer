@@ -3,11 +3,11 @@ from dataclasses import dataclass
 @dataclass(slots=True)
 class TrackConfig:
     csv = "src/simulation/assets/tracks/ks_barcelona_layout_gp_centerline.csv"
-    # friction_csv = "src/simulation/assets/tracks/barcelona_ice.csv"
+    friction_csv = "src/simulation/assets/tracks/barcelona_ice.csv"
     # friction_csv = None
 
     # csv = "src/simulation/assets/tracks/sample_oval_centerline.csv"
-    friction_csv = "src/simulation/assets/tracks/oval_ice.csv"
+    # friction_csv = "src/simulation/assets/tracks/oval_ice.csv"
     mu = 1
     width = 8.0
     closed = True
