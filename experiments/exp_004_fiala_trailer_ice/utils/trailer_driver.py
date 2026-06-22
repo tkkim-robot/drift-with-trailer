@@ -14,6 +14,7 @@ import numpy as np
 from gymnasium.wrappers import RecordVideo
 from src.simulation.trailer_bicycle_env import TrailerBicycleEnv, VehicleState
 from dataclasses import astuple
+import warnings
 
 import jax.numpy as jnp
 
@@ -38,10 +39,13 @@ def run_mpc(
     benchmark=False,
     headless=False,
     env_kwargs=None,
+    record_file_name=None,
 ):
     """
     ctl_args for MPPI is only covariance. For SMPPI is covariance and omega.
     """
+
+    warnings.filterwarnings("ignore", module="gymnasium")
 
     # Benchmarking
     speeds, slip_angles_f, slip_angles_r, yaw_rates = [], [], [], []
@@ -50,14 +54,16 @@ def run_mpc(
         env_kwargs = {
             "renderer": "pybullet",
             "render_mode": "rgb_array_birds_eye",
-            "render_width": 450,
-            "render_height": 300,
+            "render_width": 600,
+            "render_height": 400,
         }
 
     env = TrailerBicycleEnv(**env_kwargs)
 
+    fname = "rl-video" if record_file_name is None else record_file_name
+
     if record:
-        env = RecordVideo(env, video_folder="gym_videos", episode_trigger=lambda x: True)
+        env = RecordVideo(env, video_folder="gym_videos", episode_trigger=lambda x: True, disable_logger=True, name_prefix=fname)
 
     env.reset()
 
@@ -70,7 +76,7 @@ def run_mpc(
         ctl_args = (6, 2, dynamics, None, cost, bound, *ctl_args)
         
         if debug:
-            print("Using MPPI")
+            # print("Using MPPI")
             mpc = MPPI_Jax_Debug(*ctl_args, **ctl_kwargs)
         else:
             mpc = MPPI_Jax(*ctl_args, **ctl_kwargs)
@@ -79,7 +85,7 @@ def run_mpc(
         ctl_args = (6, 2, dynamics, None, cost, bound, bound_der, *ctl_args)
 
         if debug:
-            print("Using SMPPI")
+            # print("Using SMPPI")
             mpc = SMPPI_Jax_Debug(*ctl_args, **ctl_kwargs)
         else:
             mpc = SMPPI_Jax(*ctl_args, **ctl_kwargs)
@@ -161,6 +167,7 @@ def run_mpc(
     if benchmark:
         cutoff = 100
         print(
+            f"Iters: {i}, "
             f"Reverse: {cost_kwargs['reverse']}, "
             f"Avg speed: {jnp.mean(jnp.array(speeds[cutoff:]))}, "
             f"Avg alpha_f: {jnp.mean(jnp.array(slip_angles_f[cutoff:]))}, "

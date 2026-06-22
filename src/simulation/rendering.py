@@ -11,7 +11,7 @@ from pathlib import Path
 import imageio.v2 as imageio
 import numpy as np
 import pybullet as p
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 from src.simulation.config.bicycle_config import BicycleEnvConfig
 from src.simulation.config.trailer_bicycle_config import TrailerBicycleEnvConfig
@@ -448,6 +448,22 @@ class PyBulletMirrorRenderer:
 
         return np.asarray(image.convert("RGB"), dtype=np.uint8)
 
+    def _overlay_hud(self, frame: np.ndarray, render_state: dict | None) -> np.ndarray:
+        if render_state is None:
+            return frame
+        
+        try:    
+            font = ImageFont.load_default(size=20)
+        except TypeError: 
+            font = ImageFont.load_default()
+        
+        speed = float(render_state.get("speed", 0.0))
+        image = Image.fromarray(frame.astype(np.uint8), mode="RGB").convert("RGBA")
+        draw = ImageDraw.Draw(image, "RGBA")
+        draw.rectangle([6, 6, 120, 30], fill=(0, 0, 0, 120))          # readability backdrop
+        draw.text((12, 8), f"{(speed * 3.6):5.1f} km/h", fill=(255, 255, 255, 255), font=font)
+        return np.asarray(image.convert("RGB"), dtype=np.uint8)
+
     def render(
         self,
         render_state: dict,
@@ -491,7 +507,9 @@ class PyBulletMirrorRenderer:
                 physicsClientId=self.client_id,
             )
         frame = np.reshape(rgb, (self.height, self.width, 4))[:, :, :3]
-        return self._overlay_planner_debug(frame, planner_debug, view, projection)
+        frame = self._overlay_planner_debug(frame, planner_debug, view, projection)
+        frame = self._overlay_hud(frame, render_state)
+        return frame
 
     def close(self) -> None:
         if self.client_id is not None:

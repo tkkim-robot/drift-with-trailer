@@ -4,10 +4,10 @@ import numpy as np
 @dataclass(slots=True)
 class TrackConfig:
     csv = "src/simulation/assets/tracks/ks_barcelona_layout_gp_centerline.csv"
-    friction_csv = "src/simulation/assets/tracks/barcelona_ice.csv"
+    # friction_csv = "src/simulation/assets/tracks/barcelona_ice.csv"
 
     # csv = "src/simulation/assets/tracks/sample_oval_centerline.csv"
-    # friction_csv = "src/simulation/assets/tracks/oval_ice.csv"
+    friction_csv = "src/simulation/assets/tracks/oval_ice.csv"
     mu = 1
     width = 8.0
     closed = True
@@ -38,7 +38,7 @@ class VehicleConfig:
     l2r = 0.4
     cornering_stiffness_trailer = 80000.0
     hitch_offset = 2.3  # tractor CG to hitch (positive behind)
-    max_hitch = np.deg2rad(120)
+    max_hitch = np.deg2rad(90)
 
 
 @dataclass(slots=True)
