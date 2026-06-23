@@ -56,7 +56,7 @@ def rollout(
     if term_cost:
         S += term_cost(x, u[-1])
 
-    diff = (new_a[1:] - jnp.roll(new_a[:-1], 1, axis=0))
+    diff = new_a[1:] - new_a[:-1]
 
     S += jnp.einsum("tn,nm,tm->", diff, omega, diff)
 
@@ -118,7 +118,7 @@ class SMPPI_Jax:
         omega,
         inverse_temp=1,
         alpha=0.01,
-        gamma=0.01,
+        gamma=0.01, # TODO remove
         K=20000,
         step=0.02,
         T=70,
@@ -147,7 +147,7 @@ class SMPPI_Jax:
         self.bound_der_control = bound_der_control_func
         self.alpha = alpha
         self.inverse_temp = inverse_temp
-        self.gamma = gamma
+        self.gamma = (1 - alpha) * inverse_temp
         self.omega = omega
         self.K = K
         self.device = device

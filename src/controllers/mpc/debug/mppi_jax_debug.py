@@ -1,3 +1,8 @@
+"""
+Designed as a drop-in replacement for MPPI_Jax but with extra visualization tools
+for debugging purposes
+"""
+
 from scipy.signal import savgol_filter
 import jax.numpy as jnp
 import jax
@@ -50,11 +55,11 @@ def rollout(
 
         return new_carry, (new_x, new_S)
 
-    (x, S, _), _ = jax.lax.scan(step_dynamics, (x, 0, 0), (u, v, bounded_noise))
+    (x, S, _), (xhist, _) = jax.lax.scan(step_dynamics, (x, 0, 0), (u, v, bounded_noise))
 
     if term_cost:
         S += term_cost(x, u[-1])
-    return S
+    return S, xhist
 
 
 @functools.partial(
@@ -76,7 +81,7 @@ def mpc_step(x, last_trajectory, u_d, key, K, T, cv, inverse_temp, forward_sim):
     key, subkey = jax.random.split(key)
     noise = jax.random.normal(subkey, u_batch.shape) * jnp.sqrt(jnp.diag(cv))
 
-    costs, bounded_noise = forward_sim(x_batch, u_batch, noise)
+    costs, bounded_noise, xhist = forward_sim(x_batch, u_batch, noise)
 
     weights = jnp.exp(-(costs - costs.min()) / inverse_temp)
     weights = weights / weights.sum()
@@ -84,10 +89,10 @@ def mpc_step(x, last_trajectory, u_d, key, K, T, cv, inverse_temp, forward_sim):
     weighted_noise = jnp.sum(weights.reshape(-1, 1, 1) * bounded_noise, axis=0)
     u = u + weighted_noise
 
-    return u, key
+    return u, key, xhist
 
 
-class MPPI_Jax:
+class MPPI_Jax_Debug:
     """
     JAX MPPI
     """
@@ -103,7 +108,7 @@ class MPPI_Jax:
         cv,
         inverse_temp=1,
         alpha=0.01,
-        gamma=0.01, # TODO purge the repo of this term, it is calculated
+        gamma=0.01,  # TODO purge the repo of this term, it is calculated
         K=20000,
         step=0.02,
         T=70,
@@ -169,7 +174,7 @@ class MPPI_Jax:
         v = self.bound_control(v)
         noise = v - u
 
-        S = rollout(
+        S, xhist = rollout(
             x,
             u,
             noise,
@@ -182,9 +187,9 @@ class MPPI_Jax:
             self.step,
         )
 
-        return S, noise
+        return S, noise, xhist
 
-    def run_mpc(self, x: ArrayLike) -> torch.Tensor:
+    def run_mpc(self, x: ArrayLike) -> tuple[ArrayLike, ArrayLike]:
         """
         Runs a single MPC solve.
 
@@ -195,7 +200,7 @@ class MPPI_Jax:
             torch.Tensor: Control output
         """
 
-        u, self.key = mpc_step(
+        u, self.key, xhist = mpc_step(
             x,
             self.last_trajectory,
             self.u_d,
@@ -214,4 +219,4 @@ class MPPI_Jax:
         # self.u_history = self.u_history.at[-1].set(u[0])
         self.last_trajectory = u
 
-        return u[0]
+        return u[0], xhist

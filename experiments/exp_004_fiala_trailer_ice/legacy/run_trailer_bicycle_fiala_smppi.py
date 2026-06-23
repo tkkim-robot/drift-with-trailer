@@ -1,56 +1,57 @@
-from uncertain_racecar_gym.jax_env import build_nominal_jax_params, NominalJaxRacecarEnv
-from uncertain_racecar_gym.env import VehicleState
-import gymnasium as gym
-from src.controllers.mpc.mppi_jax import MPPI_Jax
-from experiments.exp_003_racecar_mppi.dynamics import gen_util_funs
-
+from uncertain_racecar_gym.jax_env import build_nominal_jax_params
+from src.simulation.trailer_bicycle_env import VehicleState
+from src.controllers.mpc.smppi_jax import SMPPI_Jax
+from dynamics.trailer.trailer_bicycle_fiala import gen_util_funs
 import time
 import cv2
 from gymnasium.wrappers import RecordVideo
-
-
+from src.simulation.trailer_bicycle_env import TrailerBicycleEnv
+from dataclasses import astuple 
 import jax.numpy as jnp
+
+from jax import config
+
+config.update("jax_debug_nans", True)
 
 
 def run_mpc(scenario, reverse=False):
     speeds, slip_angles_f, slip_angles_r, yaw_rates = [], [], [], []
-    env = RecordVideo(
-        gym.make(
-            "UncertainRacecar-v0",
-            scenario=f"package://scenarios/{scenario}",
-            uncertainty=None,
-            renderer="pybullet",
-            render_mode="rgb_array_birds_eye",
-            render_width=300,
-            render_height=200,
-        ),
-        video_folder="gym_videos",
-        episode_trigger=lambda x: True,
+    env = TrailerBicycleEnv(
+        renderer="pybullet",
+        render_mode="rgb_array_birds_eye",
+        render_width=300,
+        render_height=200,
     )
+
+    env = RecordVideo(env, video_folder="gym_videos", episode_trigger=lambda x: True)
+
+
     env.reset()
 
     params = build_nominal_jax_params(
         scenario=f"package://scenarios/{scenario}",
     )
-    dynamics, cost, bound, _ = gen_util_funs(params[0], reverse=reverse, v_target=None)
 
-    mpc = MPPI_Jax(
+    dynamics, cost, bound, bound_der = gen_util_funs(env.unwrapped.scenario, reverse=reverse, v_target=20)
+
+    mpc = SMPPI_Jax(
         6,
         2,
         dynamics,
         None,
         cost,
         bound,
-        jnp.diag(jnp.array([0.25, 0.75])),
-        inverse_temp=0.5,
-        K=350,
-        gamma=0.1,
+        bound_der,
+        jnp.diag(jnp.array([1, 0.01])), # 0.25, 0.75
+        jnp.diag(jnp.array([1e-1, 1e-2])),
+        inverse_temp=1,
+        K=1000,
+        gamma=1,
         step=0.05,
-        T=45,
+        T=100,
     )
 
     observation, reward, terminated, truncated, info = env.step(jnp.zeros(3))
-
 
     i = 0
     try:
@@ -59,7 +60,15 @@ def run_mpc(scenario, reverse=False):
 
             state: VehicleState = env.unwrapped._state
 
-            mpc_state = jnp.array([state.x, state.y, state.yaw, state.vx, state.vy, state.yaw_rate])
+            # David why is this JNP? why not
+            mpc_state = jnp.array(
+                [
+                    *astuple(state)[:-2],
+                    env.unwrapped.track.find_mu(state.x, state.y),
+                    env.unwrapped.track._arc_samples[env.unwrapped._last_index],
+                ]
+            )
+
 
             u = mpc.run_mpc(mpc_state)
             u.block_until_ready()
@@ -69,27 +78,29 @@ def run_mpc(scenario, reverse=False):
                 f"Step: {i:<5d} | "
                 f"Time: {elapsed:<7.3f} | "
                 f"u: {u[0]:<7.3f} {u[1]:<7.3f} | "
-                f"Prog: {state.progress:<6.3f} | "
+                # f"Prog: {state.progress:<6.3f} | "
                 f"vx: {state.vx:<7.3f} | "
                 f"vy: {state.vy:<7.3f} | "
-                f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f}"
+                f"|v|: {jnp.hypot(state.vx, state.vy):<7.3f} | "
+                f"mu: {env.unwrapped.track.find_mu(state.x, state.y)}"
             )
 
             # Benchmarking
             speeds.append(jnp.hypot(state.vx, state.vy))
-            yaw_rates.append(state.yaw_rate)
+            yaw_rates.append(state.yaw_truck_rate)
 
             vx_safe = jnp.maximum(jnp.abs(state.vx), 0.5)
             steer_angle = state.steer * params[1].vehicle.max_steer_rad
             alpha_f = steer_angle - jnp.arctan2(
-                state.vy + params[1].vehicle.lf * state.yaw_rate, vx_safe
+                state.vy + params[1].vehicle.lf * state.yaw_truck_rate, vx_safe
             )
-            alpha_r = -jnp.arctan2(state.vy - params[1].vehicle.lr * state.yaw_rate, vx_safe)
+            alpha_r = -jnp.arctan2(state.vy - params[1].vehicle.lr * state.yaw_truck_rate, vx_safe)
 
             slip_angles_f.append(alpha_f)
             slip_angles_r.append(alpha_r)
 
-            action = jnp.array([u[0], jnp.maximum(u[1], 0), -jnp.minimum(u[1], 0)])
+            action = jnp.array([u[0], u[1]])
+
             observation, reward, terminated, truncated, info = env.step(action)
 
             if terminated:  # or truncated:
