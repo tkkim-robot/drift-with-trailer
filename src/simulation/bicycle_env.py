@@ -214,7 +214,7 @@ class BicycleEnv(gym.Env):
 
         self._state: VehicleState | None = None
 
-        obs_dim = 7
+        obs_dim = 3
 
         self.observation_space = gym.spaces.Box(
             low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32

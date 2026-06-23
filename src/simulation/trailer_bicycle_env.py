@@ -297,7 +297,7 @@ class TrailerBicycleEnv(gym.Env):
 
         self._state: VehicleState | None = None
 
-        obs_dim = 7
+        obs_dim = 6
 
         self.observation_space = gym.spaces.Box(
             low=-np.inf, high=np.inf, shape=(obs_dim,), dtype=np.float32
@@ -446,9 +446,13 @@ class TrailerBicycleEnv(gym.Env):
             "render_state": render_state,
             "lap_count": self._lap_count,
         }
+
+        def wrap_angle(angle):
+            return (angle + np.pi) % (2 * np.pi) - np.pi
+
         terminated = (
             self.track.out_of_bounds(projection.lateral_error)
-            or np.abs(self._state.yaw_trailer - self._state.yaw_truck)
+            or np.abs(wrap_angle(self._state.yaw_trailer - self._state.yaw_truck))
             >= self.scenario.vehicle.max_hitch
         )
 

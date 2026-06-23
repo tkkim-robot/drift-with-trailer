@@ -345,7 +345,12 @@ def gen_util_funs(
             0, jnp.abs(projection_curr.lateral_error) - (params.track.width * 0.5) * 0.9 + 0.1
         )
 
-        violation += jnp.maximum(0, jnp.abs(x[2] - x[3]) - params.vehicle.max_hitch)
+        def wrap_angle(angle):
+            return (angle + jnp.pi) % (2 * jnp.pi) - jnp.pi
+
+        hitch_angle = wrap_angle(x[2] - x[3])
+
+        violation += jnp.maximum(0, jnp.abs(hitch_angle) - params.vehicle.max_hitch)
 
         max_safe_v = (
             jnp.sqrt(1.0 * 1.5 * 9.8 / (projection_next.curvature + 1e-5)) + 1e7
@@ -368,7 +373,7 @@ def gen_util_funs(
             + v_term
             + combined_traction_penalty(x, u) * s_weight
             + projection_curr.lateral_error**2 * c_weight
-            + jnp.abs(x[2] - x[3]) * a_weight
+            + jnp.abs(hitch_angle) * a_weight
         )
 
         # jax.debug.print("cost {c}", c=c)
