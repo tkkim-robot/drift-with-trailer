@@ -21,12 +21,11 @@ class TrackProjection(NamedTuple):
 def gen_util_funs(
     params: TrailerBicycleEnvConfig,
     reverse=False,
-    # v_target=None,
-    # p_weight=1e4,
-    # p_slow_weight=1e0,
-    # s_weight=1e4,
-    # c_weight=1e-2,
-    # a_weight=1e5,
+    v_target=None,
+    p_weight=1e4,
+    p_slow_weight=1e0,
+    c_weight=1e-2,
+    a_weight=1e5,
 ):
     reverse = 1 if reverse else -1
     step = params.simulation.dt
@@ -128,7 +127,52 @@ def gen_util_funs(
 
     @jax.jit
     def cost(x, u, t):
-        pass
+        
+        # Tunable values
+        yaw = x[2]
+        gvx = x[4] * jnp.cos(yaw)
+        gvy = x[4] * jnp.sin(yaw)
+
+        index = jnp.searchsorted(track._cumulative, x[6], side="right") - 1
+
+        projection_curr, _ = _project_to_track(x[0], x[1], index)
+        projection_next, _ = _project_to_track(x[0] + step * gvx, x[1] + step * gvy, index)
+
+        raw_diff = projection_next.arc_length - projection_curr.arc_length
+        track_vel = (raw_diff - track.length * jnp.round(raw_diff / track.length)) / step
+
+        violation = jnp.maximum(
+            0, jnp.abs(projection_curr.lateral_error) - (params.track.width * 0.5) * 0.9 + 0.1
+        )
+
+        def wrap_angle(angle):
+            return (angle + jnp.pi) % (2 * jnp.pi) - jnp.pi
+
+        hitch_angle = wrap_angle(x[2] - x[3])
+
+        violation += jnp.maximum(0, jnp.abs(hitch_angle) - params.vehicle.max_hitch)
+
+        if v_target is None:
+            v_term = reverse * p_weight * jnp.abs(track_vel) * jnp.sign(x[4])
+        else:
+            v_term = p_weight * jnp.abs(v_target + reverse * jnp.abs(track_vel) * jnp.sign(x[4]))
+            # v_baseline = jnp.minimum(max_safe_v, v_target)
+            # # If v is above threshold use actual car velocity instead of track velocity to stop cheating
+            # v_car = jnp.where(nominal_v > max_safe_v, nominal_v, track_vel)
+
+            # v_term = p_weight * jnp.maximum(
+            #     0, v_car - v_baseline
+            # ) + p_weight * p_slow_weight * jnp.maximum(0, v_baseline - v_car)
+
+        c = (
+            0.99**t * (1e12 * violation)
+            + v_term
+            + projection_curr.lateral_error**2 * c_weight
+            + jnp.abs(hitch_angle) * a_weight
+        )
+
+        # jax.debug.print("cost {c}", c=c)
+        return c
 
     def bound(u):
         return jnp.clip(u, jnp.array([-1, -1]), jnp.array([1, 1]))

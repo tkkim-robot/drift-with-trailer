@@ -275,12 +275,16 @@ class TrailerBicycleEnv(gym.Env):
         render_mode: str | None = None,
         render_width: int = 1280,
         render_height: int = 720,
+        scenario = None
     ) -> None:
         super().__init__()
 
-        self.scenario = TrailerBicycleEnvConfig(
-            "aach aach aach", TrackConfig(), VehicleConfig(), SimulationConfig()
-        )
+        if scenario is None:
+            scenario = TrailerBicycleEnvConfig(
+                "aach aach aach", TrackConfig(), VehicleConfig(), SimulationConfig()
+            )
+
+        self.scenario = scenario
         self.track = TrackModel.from_config(self.scenario.track)
         self.dynamics = DynamicTrailerBicycleModel(self.scenario)
 
