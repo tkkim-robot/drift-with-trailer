@@ -17,6 +17,8 @@ from experiments.exp_006_learned_cartpole_dynamics.cartpole_utils import (
 )
 from experiments.exp_006_learned_cartpole_dynamics.cartpole_nn_dynamics import LearnedDynamics
 
+# jax.config.update("jax_enable_x64", True)
+
 env = CartPoleEnv(render_mode="rgb_array")
 env = RecordVideo(
     env,
@@ -29,9 +31,9 @@ env = RecordVideo(
 env.reset()
 
 BATCH_SIZE = 16
-EPOCHS = 30
-LR = 0.005
-N = 64  # preferably a multiple of BATCH_SIZE
+EPOCHS = 40
+LR = 0.01
+N = 512  # preferably a multiple of BATCH_SIZE
 
 
 dynamics = LearnedDynamics(
@@ -46,17 +48,47 @@ dynamics = LearnedDynamics(
 
 device = "cpu"
 
-mpc = MPPI_Jax(4, 1, dynamics, term_cost, cost, bound_control, jnp.eye(1) * 3)
+mpc = MPPI_Jax(4, 1, dynamics, term_cost, cost, bound_control, jnp.eye(1) * 3, K=1000)
 
 observation, reward, terminated, truncated, info = env.step(0)
 
 i = 0
 
 try:
+
+    # Warm start
+    iter = 2048
+    init_epochs = 150
+
+    action = np.sin(np.linspace(0, iter / 12, iter)) * FORCE * 0.25
+
+    for i in range(iter):
+        next_observation, reward, terminated, truncated, info = env.step(action[i])
+        dynamics.data.add(
+            jnp.array([*observation, action[i]]), jnp.array(next_observation - observation) / 0.02
+        )
+
+        observation = next_observation
+        i += 1
+
+        frame = env.render()
+        cv2.imshow("sim", frame[..., ::-1])
+        cv2.waitKey(1)
+
+        if terminated:
+            print("Died, resetting")
+            observation, _ = env.reset()
+            continue
+
+    dynamics.train(init_epochs)
+    jax.clear_caches()
+
     while True:
         start = time.perf_counter()
         u = mpc.run_mpc(observation)
         action = np.clip(float(np.array(u[0])), -FORCE, FORCE)
+        
+        u.block_until_ready()
         print(i, time.perf_counter() - start, action)
 
         next_observation, reward, terminated, truncated, info = env.step(action)

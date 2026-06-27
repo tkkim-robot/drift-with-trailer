@@ -5,11 +5,11 @@ class CartpoleModel(nnx.Module):
         rng = nnx.Rngs(1248)
 
         self.model = nnx.Sequential(
-            nnx.Linear(in_dim, 16, rngs=rng),
+            nnx.Linear(in_dim, 64, rngs=rng),
             nnx.tanh,
-            nnx.Linear(16, 16, rngs=rng),
+            nnx.Linear(64, 64, rngs=rng),
             nnx.tanh,
-            nnx.Linear(16, out_dim, rngs=rng),
+            nnx.Linear(64, out_dim, rngs=rng),
         )
 
     def __call__(self, x):
