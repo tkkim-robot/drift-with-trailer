@@ -79,7 +79,7 @@ def run_mpc():
     # )
     device = "cpu"
 
-    mpc = MPPI_Jax(4, 1, gen_dynamics, term_cost, cost, bound_control, jnp.eye(1) * 3)
+    mpc = MPPI_Jax(4, 1, gen_dynamics, term_cost, cost, bound_control, jnp.eye(1) * 3, K=500, inverse_temp=0.1)
     
     observation, reward, terminated, truncated, info = env.step(0)
 

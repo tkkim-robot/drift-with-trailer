@@ -48,7 +48,7 @@ dynamics = LearnedDynamics(
 
 device = "cpu"
 
-mpc = MPPI_Jax(4, 1, dynamics, term_cost, cost, bound_control, jnp.eye(1) * 3, K=1000)
+mpc = MPPI_Jax(4, 1, dynamics, term_cost, cost, bound_control, jnp.eye(1) * 3, K=500, inverse_temp=0.1)
 
 observation, reward, terminated, truncated, info = env.step(0)
 
@@ -60,7 +60,7 @@ try:
     iter = 2048
     init_epochs = 150
 
-    action = np.sin(np.linspace(0, iter / 12, iter)) * FORCE * 0.25
+    action = np.sin(np.linspace(0, iter / 10, iter)) * FORCE * 0.25
 
     for i in range(iter):
         next_observation, reward, terminated, truncated, info = env.step(action[i])
