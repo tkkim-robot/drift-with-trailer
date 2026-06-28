@@ -6,9 +6,9 @@ class CartpoleModel(nnx.Module):
 
         self.model = nnx.Sequential(
             nnx.Linear(in_dim, 32, rngs=rng),
-            nnx.tanh,
+            nnx.relu,
             nnx.Linear(32, 32, rngs=rng),
-            nnx.tanh,
+            nnx.relu,
             nnx.Linear(32, out_dim, rngs=rng),
         )
 

@@ -30,17 +30,21 @@ env = RecordVideo(
 
 env.reset()
 
-BATCH_SIZE = 16
-EPOCHS = 40
-LR = 0.01
-N = 512  # preferably a multiple of BATCH_SIZE
+BATCH_SIZE = 256
+EPOCHS = 30
+LR = 0.05
+N = 256  # preferably a multiple of BATCH_SIZE
 
+def wrapper(observation, u):
+    x, x_dot, theta, theta_dot = observation
+    state =  jnp.array((x, x_dot, jnp.cos(theta), jnp.sin(theta), theta_dot), dtype=np.float32)
+    return dynamics(state, u)
 
 dynamics = LearnedDynamics(
-    CartpoleModel(5, 4),
+    CartpoleModel(6, 4),
     BATCH_SIZE,
-    state_mean=jnp.zeros(5),
-    state_std=jnp.array([3, 3, 1, 1, 3]),
+    state_mean=jnp.zeros(6),
+    state_std=jnp.array([3, 3, 0.7, 0.7, 1, 3]),
     dynamics_mean=jnp.zeros(4),
     dynamics_std=jnp.array([0.05, 0.1, 0.05, 0.2]),
     optimizer_params=dict(learning_rate=LR),
@@ -48,24 +52,34 @@ dynamics = LearnedDynamics(
 
 device = "cpu"
 
-mpc = MPPI_Jax(4, 1, dynamics, term_cost, cost, bound_control, jnp.eye(1) * 3, K=500, inverse_temp=0.1)
+mpc = MPPI_Jax(4, 1, wrapper, term_cost, cost, bound_control, jnp.eye(1) * 3, K=500, inverse_temp=0.1)
 
 observation, reward, terminated, truncated, info = env.step(0)
 
 i = 0
 
+
+def data(observation, next_observation, u):
+    x, x_dot, theta, theta_dot = observation
+    d_observation = (next_observation - observation) / 0.02
+    
+    nn_state = jnp.array((x, x_dot, np.cos(theta), np.sin(theta), theta_dot, u), dtype=np.float32)
+
+    return nn_state, d_observation
+
 try:
 
     # Warm start
-    iter = 2048
-    init_epochs = 150
+    iter = 512
+    init_epochs = 60
 
-    action = np.sin(np.linspace(0, iter / 10, iter)) * FORCE * 0.25
+    action = np.sin(np.linspace(0, iter / 15, iter)) * FORCE * 0.25
 
     for i in range(iter):
         next_observation, reward, terminated, truncated, info = env.step(action[i])
+        
         dynamics.data.add(
-            jnp.array([*observation, action[i]]), jnp.array(next_observation - observation) / 0.02
+            *data(observation, next_observation, action[i])
         )
 
         observation = next_observation
@@ -93,7 +107,7 @@ try:
 
         next_observation, reward, terminated, truncated, info = env.step(action)
         dynamics.data.add(
-            jnp.array([*observation, action]), jnp.array(next_observation - observation) / 0.02
+            *data(observation, next_observation, action)
         )
 
         observation = next_observation

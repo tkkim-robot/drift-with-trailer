@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import jax
 from jax.typing import ArrayLike
 import numpy as np
-import torch
 import functools
 
 
@@ -184,7 +183,7 @@ class MPPI_Jax:
 
         return S, noise
 
-    def run_mpc(self, x: ArrayLike) -> torch.Tensor:
+    def run_mpc(self, x: ArrayLike):
         """
         Runs a single MPC solve.
 
