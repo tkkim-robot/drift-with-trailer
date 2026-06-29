@@ -110,7 +110,7 @@ def gen_util_funs(
         theta1_dot = (v / (vehicle.lf + vehicle.lr)) * jnp.tan(delta)
         theta2_dot = (v / (vehicle.l2f + vehicle.l2r)) * (
             jnp.sin(phi_1 - phi_2)
-            - ((vehicle.hitch_offset - vehicle.l2r) / (vehicle.lf + vehicle.lr))
+            - ((vehicle.hitch_offset - vehicle.lr) / (vehicle.lf + vehicle.lr))
             * jnp.cos(phi_1 - phi_2)
             * jnp.tan(delta)
         )
