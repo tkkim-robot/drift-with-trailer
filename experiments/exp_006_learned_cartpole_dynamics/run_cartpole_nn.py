@@ -30,15 +30,23 @@ env = RecordVideo(
 
 env.reset()
 
+fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+video_writer = cv2.VideoWriter(
+    "gym_videos/cartpole_nn.mp4", fourcc, 50, env.unwrapped.render().shape[:2][::-1]
+)
+
+
 BATCH_SIZE = 256
 EPOCHS = 30
 LR = 0.05
 N = 256  # preferably a multiple of BATCH_SIZE
 
+
 def wrapper(observation, u):
     x, x_dot, theta, theta_dot = observation
-    state =  jnp.array((x, x_dot, jnp.cos(theta), jnp.sin(theta), theta_dot), dtype=np.float32)
+    state = jnp.array((x, x_dot, jnp.cos(theta), jnp.sin(theta), theta_dot), dtype=np.float32)
     return dynamics(state, u)
+
 
 dynamics = LearnedDynamics(
     CartpoleModel(6, 4),
@@ -52,20 +60,24 @@ dynamics = LearnedDynamics(
 
 device = "cpu"
 
-mpc = MPPI_Jax(4, 1, wrapper, term_cost, cost, bound_control, jnp.eye(1) * 3, K=500, inverse_temp=0.1)
+mpc = MPPI_Jax(
+    4, 1, wrapper, term_cost, cost, bound_control, jnp.eye(1) * 3, K=500, inverse_temp=0.1
+)
 
 observation, reward, terminated, truncated, info = env.step(0)
 
 i = 0
 
 
+@jax.jit
 def data(observation, next_observation, u):
     x, x_dot, theta, theta_dot = observation
     d_observation = (next_observation - observation) / 0.02
-    
-    nn_state = jnp.array((x, x_dot, np.cos(theta), np.sin(theta), theta_dot, u), dtype=np.float32)
+
+    nn_state = jnp.array((x, x_dot, jnp.cos(theta), jnp.sin(theta), theta_dot, u))
 
     return nn_state, d_observation
+
 
 try:
 
@@ -77,10 +89,8 @@ try:
 
     for i in range(iter):
         next_observation, reward, terminated, truncated, info = env.step(action[i])
-        
-        dynamics.data.add(
-            *data(observation, next_observation, action[i])
-        )
+
+        dynamics.data.add(*data(observation, next_observation, action[i]))
 
         observation = next_observation
         i += 1
@@ -88,6 +98,8 @@ try:
         frame = env.render()
         cv2.imshow("sim", frame[..., ::-1])
         cv2.waitKey(1)
+
+        video_writer.write(frame[...,::-1])
 
         if terminated:
             print("Died, resetting")
@@ -101,14 +113,12 @@ try:
         start = time.perf_counter()
         u = mpc.run_mpc(observation)
         action = np.clip(float(np.array(u[0])), -FORCE, FORCE)
-        
+
         u.block_until_ready()
-        print(i, time.perf_counter() - start, action)
+        print(i, time.perf_counter() - start, action, observation)
 
         next_observation, reward, terminated, truncated, info = env.step(action)
-        dynamics.data.add(
-            *data(observation, next_observation, action)
-        )
+        dynamics.data.add(*data(observation, next_observation, action))
 
         observation = next_observation
         i += 1
@@ -117,6 +127,8 @@ try:
         cv2.imshow("sim", frame[..., ::-1])
         cv2.waitKey(1)
 
+        video_writer.write(frame[...,::-1])
+
         if terminated:
             print("Died, resetting")
             observation, _ = env.reset()
@@ -124,8 +136,10 @@ try:
 
         if i % N == 0:
             dynamics.train(EPOCHS)
-            jax.clear_caches() # in case jax is not using the updated model?
+            jax.clear_caches()  # in case jax is not using the updated model?
 
-
+        if i > 1600:
+            break
 finally:
     env.close()
+    video_writer.release()
