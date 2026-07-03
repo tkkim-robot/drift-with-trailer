@@ -128,15 +128,15 @@ def run_mpc(
             
             if benchmark:
                 speeds.append(jnp.hypot(state.vx, state.vy))
-                yaw_rates.append(state.yaw_truck)
+                yaw_rates.append(state.yaw_truck_rate)
 
                 vx_safe = jnp.maximum(jnp.abs(state.vx), 0.5)
                 steer_angle = state.steer * env.unwrapped.scenario.vehicle.max_steer_rad
                 alpha_f = steer_angle - jnp.arctan2(
-                    state.vy + env.unwrapped.scenario.vehicle.lf * state.yaw_truck, vx_safe
+                    state.vy + env.unwrapped.scenario.vehicle.lf * state.yaw_truck_rate, vx_safe
                 )
                 alpha_r = -jnp.arctan2(
-                    state.vy - env.unwrapped.scenario.vehicle.lr * state.yaw_truck, vx_safe
+                    state.vy - env.unwrapped.scenario.vehicle.lr * state.yaw_truck_rate, vx_safe
                 )
 
                 slip_angles_f.append(alpha_f)
