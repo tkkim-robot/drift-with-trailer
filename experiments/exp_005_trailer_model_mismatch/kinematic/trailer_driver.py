@@ -114,7 +114,7 @@ def run_mpc(
                     state.y,
                     state.yaw_truck,
                     state.yaw_trailer,
-                    np.linalg.norm(np.array((state.vx, state.vy))), # TODO would it be better just to put vx
+                    state.vx,
                     env.unwrapped.track.find_mu(state.x, state.y),
                     env.unwrapped.track._arc_samples[env.unwrapped._last_index],
                 ]
@@ -132,7 +132,7 @@ def run_mpc(
             
             if benchmark:
                 speeds.append(jnp.hypot(state.vx, state.vy))
-                yaw_rates.append(state.yaw_truck)
+                yaw_rates.append(state.yaw_truck_rate)
 
                 vx_safe = jnp.maximum(jnp.abs(state.vx), 0.5)
                 steer_angle = state.steer * env.unwrapped.scenario.vehicle.max_steer_rad

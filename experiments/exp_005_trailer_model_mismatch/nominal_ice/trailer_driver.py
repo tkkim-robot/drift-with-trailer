@@ -128,7 +128,7 @@ def run_mpc(
             
             if benchmark:
                 speeds.append(jnp.hypot(state.vx, state.vy))
-                yaw_rates.append(state.yaw_truck)
+                yaw_rates.append(state.yaw_truck_rate)
 
                 vx_safe = jnp.maximum(jnp.abs(state.vx), 0.5)
                 steer_angle = state.steer * env.unwrapped.scenario.vehicle.max_steer_rad
