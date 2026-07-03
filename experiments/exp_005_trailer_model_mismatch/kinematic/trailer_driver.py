@@ -114,7 +114,7 @@ def run_mpc(
                     state.y,
                     state.yaw_truck,
                     state.yaw_trailer,
-                    np.linalg.norm(np.array((state.vx, state.vy))), # TODO would it be better just to put vx
+                    state.vx,
                     env.unwrapped.track.find_mu(state.x, state.y),
                     env.unwrapped.track._arc_samples[env.unwrapped._last_index],
                 ]
