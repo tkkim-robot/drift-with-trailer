@@ -159,13 +159,18 @@ class DynamicTrailerBicycleModel:
         v2x_safe = jnp.maximum(jnp.abs(v_2x), 0.5)
         alpha_t = -jnp.arctan2(v_2y - vehicle.l2r * phi_2_dot, v2x_safe)
 
+        x_2 = x + jnp.sin(phi_1) * vehicle.lr + jnp.sin(phi_2) * vehicle.l2r
+        y_2 = y - jnp.cos(phi_1) * vehicle.lr - jnp.cos(phi_2) * vehicle.l2r
+
+        mu_trailer = track.find_mu(x_2, y_2)
+
         fzr_trailer = vehicle.trailer_mass * 9.8 * vehicle.l2f / (vehicle.l2f + vehicle.l2r)
         F_2yr = -compute_fy(
             alpha_t,
             vehicle.cornering_stiffness_trailer,
             fzr_trailer,
             0,
-            mu,
+            mu_trailer,
             vehicle.gamma,
         )
 
@@ -275,12 +280,16 @@ class TrailerBicycleEnv(gym.Env):
         render_mode: str | None = None,
         render_width: int = 1280,
         render_height: int = 720,
+        scenario = None
     ) -> None:
         super().__init__()
 
-        self.scenario = TrailerBicycleEnvConfig(
-            "aach aach aach", TrackConfig(), VehicleConfig(), SimulationConfig()
-        )
+        if scenario is None:
+            scenario = TrailerBicycleEnvConfig(
+                "aach aach aach", TrackConfig(), VehicleConfig(), SimulationConfig()
+            )
+
+        self.scenario = scenario
         self.track = TrackModel.from_config(self.scenario.track)
         self.dynamics = DynamicTrailerBicycleModel(self.scenario)
 

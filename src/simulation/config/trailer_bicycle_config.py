@@ -3,14 +3,14 @@ import numpy as np
 
 @dataclass(slots=True)
 class TrackConfig:
-    csv = "src/simulation/assets/tracks/ks_barcelona_layout_gp_centerline.csv"
-    friction_csv = "src/simulation/assets/tracks/barcelona_ice.csv"
+    csv: str = "src/simulation/assets/tracks/ks_barcelona_layout_gp_centerline.csv"
+    # friction_csv = "src/simulation/assets/tracks/barcelona_ice.csv"
 
     # csv = "src/simulation/assets/tracks/sample_oval_centerline.csv"
-    # friction_csv = "src/simulation/assets/tracks/oval_ice.csv"
-    mu = 1
-    width = 8.0
-    closed = True
+    friction_csv: str = "src/simulation/assets/tracks/oval_ice.csv"
+    mu: float = 1
+    width: float = 8.0
+    closed: bool = True
     # progress bins seems uncecessary, check
 
 
