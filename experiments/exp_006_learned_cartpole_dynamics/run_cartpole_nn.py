@@ -1,0 +1,145 @@
+import cv2
+import numpy as np
+import time
+import jax.numpy as jnp
+import jax
+from gymnasium.wrappers import RecordVideo
+
+from src.simulation.cartpole_env import CartPoleEnv
+from src.controllers.mpc.mppi_jax import MPPI_Jax
+from src.learning.models.cartpole_nn import CartpoleModel
+
+from experiments.exp_006_learned_cartpole_dynamics.cartpole_utils import (
+    term_cost,
+    cost,
+    bound_control,
+    FORCE,
+)
+from experiments.exp_006_learned_cartpole_dynamics.cartpole_nn_dynamics import LearnedDynamics
+
+# jax.config.update("jax_enable_x64", True)
+
+env = CartPoleEnv(render_mode="rgb_array")
+env = RecordVideo(
+    env,
+    video_folder="gym_videos",
+    episode_trigger=lambda x: True,
+    disable_logger=True,
+    name_prefix="cartpole_nn",
+)
+
+env.reset()
+
+fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+video_writer = cv2.VideoWriter(
+    "gym_videos/cartpole_nn.mp4", fourcc, 50, env.unwrapped.render().shape[:2][::-1]
+)
+
+
+BATCH_SIZE = 256
+EPOCHS = 30
+LR = 0.05
+N = 256  # preferably a multiple of BATCH_SIZE
+
+
+def wrapper(observation, u):
+    x, x_dot, theta, theta_dot = observation
+    state = jnp.array((x, x_dot, jnp.cos(theta), jnp.sin(theta), theta_dot), dtype=np.float32)
+    return dynamics(state, u)
+
+
+dynamics = LearnedDynamics(
+    CartpoleModel(6, 4),
+    BATCH_SIZE,
+    state_mean=jnp.zeros(6),
+    state_std=jnp.array([3, 3, 0.7, 0.7, 1, 3]),
+    dynamics_mean=jnp.zeros(4),
+    dynamics_std=jnp.array([0.05, 0.1, 0.05, 0.2]),
+    optimizer_params=dict(learning_rate=LR),
+)
+
+device = "cpu"
+
+mpc = MPPI_Jax(
+    4, 1, wrapper, term_cost, cost, bound_control, jnp.eye(1) * 3, K=500, inverse_temp=0.1
+)
+
+observation, reward, terminated, truncated, info = env.step(0)
+
+i = 0
+
+
+@jax.jit
+def data(observation, next_observation, u):
+    x, x_dot, theta, theta_dot = observation
+    d_observation = (next_observation - observation) / 0.02
+
+    nn_state = jnp.array((x, x_dot, jnp.cos(theta), jnp.sin(theta), theta_dot, u))
+
+    return nn_state, d_observation
+
+
+try:
+
+    # Warm start
+    iter = 512
+    init_epochs = 60
+
+    action = np.sin(np.linspace(0, iter / 15, iter)) * FORCE * 0.25
+
+    for i in range(iter):
+        next_observation, reward, terminated, truncated, info = env.step(action[i])
+
+        dynamics.data.add(*data(observation, next_observation, action[i]))
+
+        observation = next_observation
+        i += 1
+
+        frame = env.render()
+        cv2.imshow("sim", frame[..., ::-1])
+        cv2.waitKey(1)
+
+        video_writer.write(frame[...,::-1])
+
+        if terminated:
+            print("Died, resetting")
+            observation, _ = env.reset()
+            continue
+
+    dynamics.train(init_epochs)
+    jax.clear_caches()
+
+    while True:
+        start = time.perf_counter()
+        u = mpc.run_mpc(observation)
+        action = np.clip(float(np.array(u[0])), -FORCE, FORCE)
+
+        u.block_until_ready()
+        print(i, time.perf_counter() - start, action, observation)
+
+        next_observation, reward, terminated, truncated, info = env.step(action)
+        dynamics.data.add(*data(observation, next_observation, action))
+
+        observation = next_observation
+        i += 1
+
+        frame = env.render()
+        cv2.imshow("sim", frame[..., ::-1])
+        cv2.waitKey(1)
+
+        video_writer.write(frame[...,::-1])
+
+        if terminated:
+            print("Died, resetting")
+            observation, _ = env.reset()
+            continue
+
+        if i % N == 0:
+            dynamics.train(EPOCHS)
+            jax.clear_caches()  # in case jax is not using the updated model?
+
+        if i > 1600:
+            break
+finally:
+    env.close()
+    video_writer.release()
